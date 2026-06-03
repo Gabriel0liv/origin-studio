@@ -140,7 +140,7 @@ export function App() {
   }, [loadProjectState]);
 
   useEffect(() => {
-    const socket = new WebSocket(`${window.location.origin.replace("http", "ws")}/ws`);
+    const socket = new WebSocket(`${window.location.origin.replace("http", "ws")}/api/live`);
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data) as { event: string; payload: unknown };
       if (message.event === "diagnosticsUpdated") {
@@ -157,7 +157,7 @@ export function App() {
       }
     };
     return () => socket.close();
-  }, [loadProjectState, loadFile, projectRoot, selectedPath]);
+  }, [loadProjectState, loadFile]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

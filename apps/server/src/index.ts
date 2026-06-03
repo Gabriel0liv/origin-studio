@@ -80,8 +80,11 @@ app.post("/api/project/open", async (request) => {
 });
 
 app.get("/api/files/tree", async () => {
-  const projectRoot = requireProjectRoot();
-  return buildFileTree(projectRoot);
+  if (!state.projectRoot) {
+    return [];
+  }
+
+  return buildFileTree(state.projectRoot);
 });
 
 app.get("/api/files/content", async (request) => {
@@ -187,8 +190,7 @@ app.post("/api/profiles/select", async (request) => {
   return { ok: true, active: state.profile.profile };
 });
 
-app.get("/ws", { websocket: true }, (connection) => {
-  const socket = connection.socket as LiveSocket;
+app.get("/api/live", { websocket: true }, (socket) => {
   sockets.add(socket);
   socket.send(JSON.stringify({ event: "connected", payload: { hasProject: Boolean(state.projectRoot) } }));
   socket.on("close", () => sockets.delete(socket));
