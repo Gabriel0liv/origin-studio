@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { AlertCircle, FileJson, FolderOpen, Hammer, Search, Server, Sparkles } from "lucide-react";
+import { apiBase, wsBase } from "./config";
 
 type TreeNode = {
   name: string;
@@ -77,6 +78,7 @@ export function App() {
   const [recentProjects, setRecentProjects] = useState<string[]>(loadRecentProjects());
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>();
+  const [projectError, setProjectError] = useState<string>();
   const [fileContent, setFileContent] = useState<FileContentResponse>();
   const [draftContent, setDraftContent] = useState("");
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
@@ -153,7 +155,7 @@ export function App() {
   useEffect(() => {
     if (socketRef.current) return;
 
-    const socket = new WebSocket(`${window.location.origin.replace("http", "ws")}/api/live`);
+    const socket = new WebSocket(`${wsBase}/api/live`);
     socketRef.current = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data) as { event: string; payload: unknown };
@@ -197,15 +199,26 @@ export function App() {
   });
 
   async function openProject(nextPath?: string) {
-    const target = nextPath ?? projectInput;
-    const result = await fetchJson<{ projectRoot: string }>("/api/project/open", {
-      method: "POST",
-      body: JSON.stringify({ path: target })
-    });
-    setProjectRoot(result.projectRoot);
-    setProjectInput(result.projectRoot);
-    rememberProject(result.projectRoot, setRecentProjects);
-    await loadProjectState();
+    const target = (nextPath ?? projectInput).trim();
+
+    if (!target) {
+      setProjectError("Informe o caminho da pasta do datapack.");
+      return;
+    }
+
+    try {
+      setProjectError(undefined);
+      const result = await fetchJson<{ projectRoot: string }>("/api/project/open", {
+        method: "POST",
+        body: JSON.stringify({ path: target })
+      });
+      setProjectRoot(result.projectRoot);
+      setProjectInput(result.projectRoot);
+      rememberProject(result.projectRoot, setRecentProjects);
+      await loadProjectState();
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : "Nao foi possivel abrir o projeto.");
+    }
   }
 
   async function saveFile() {
@@ -259,10 +272,14 @@ export function App() {
             <h2>Abrir projeto</h2>
             <input
               value={projectInput}
-              onChange={(event) => setProjectInput(event.target.value)}
+              onChange={(event) => {
+                setProjectInput(event.target.value);
+                setProjectError(undefined);
+              }}
               placeholder="C:/Users/User/Desktop/MyOriginsDatapack"
             />
-            <button className="primary-button" onClick={() => void openProject()}>
+            {projectError ? <p className="error-text">{projectError}</p> : null}
+            <button className="primary-button" disabled={!projectInput.trim()} onClick={() => void openProject()}>
               <FolderOpen size={16} />
               Open Project
             </button>
@@ -280,9 +297,11 @@ export function App() {
             <section className="project-panel">
               <div className="section-head">
                 <h2>Explorer</h2>
-                <button className="ghost-button" onClick={() => void openProject()}>
-                  Reopen
-                </button>
+                {projectRoot ? (
+                  <button className="ghost-button" onClick={() => void openProject(projectRoot)}>
+                    Reopen
+                  </button>
+                ) : null}
               </div>
               <label className="search-box">
                 <Search size={14} />
@@ -587,7 +606,7 @@ function rememberProject(project: string, setRecentProjects: (items: string[]) =
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(`${apiBase}${url}`, {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -596,7 +615,17 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    const raw = await response.text();
+    let message = raw;
+
+    try {
+      const parsed = JSON.parse(raw) as { message?: string };
+      message = parsed.message ?? raw;
+    } catch {
+      message = raw;
+    }
+
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;

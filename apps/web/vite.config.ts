@@ -16,12 +16,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: false,
     proxy: {
-      "/api/live": {
-        target: "ws://127.0.0.1:8787",
-        ws: true,
-        changeOrigin: true
-      },
       "/api": {
         target: "http://127.0.0.1:8787",
         changeOrigin: true

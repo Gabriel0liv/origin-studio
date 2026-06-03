@@ -1,5 +1,6 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
@@ -35,7 +36,8 @@ interface ServerState {
   watcher?: FSWatcher;
 }
 
-const repoRoot = await findWorkspaceRoot(path.dirname(new URL(import.meta.url).pathname));
+const currentFile = fileURLToPath(import.meta.url);
+const repoRoot = await findWorkspaceRoot(path.dirname(currentFile));
 const schemaDir = await resolveSchemaDir(repoRoot);
 const host = "127.0.0.1";
 const port = 8787;
@@ -48,9 +50,31 @@ const app = Fastify({
 await app.register(cors, { origin: [/^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/localhost:\d+$/] });
 await app.register(websocket);
 
+if (process.env.ORIGIN_STUDIO_DEBUG === "true") {
+  app.log.warn({ repoRoot, schemaDir }, "schema resolution");
+}
+
 if (!schemaDir) {
   app.log.warn("origin-creator-schemas not found; using builtin MVP schemas.");
 }
+
+app.setErrorHandler((error, request, reply) => {
+  if (error instanceof z.ZodError) {
+    return reply.code(400).send({
+      ok: false,
+      code: "validation-error",
+      message: "Invalid request.",
+      issues: error.issues
+    });
+  }
+
+  request.log.error(error);
+  return reply.code(500).send({
+    ok: false,
+    code: "internal-error",
+    message: error instanceof Error ? error.message : "Unknown error"
+  });
+});
 
 const state: ServerState = {
   diagnostics: [],
@@ -78,9 +102,19 @@ app.get("/api/project", async () => ({
   profile: state.profile.profile
 }));
 
-app.post("/api/project/open", async (request) => {
-  const body = z.object({ path: z.string().min(1) }).parse(request.body);
-  const projectRoot = path.resolve(body.path);
+app.post("/api/project/open", async (request, reply) => {
+  const parsed = z.object({ path: z.string().trim().min(1) }).safeParse(request.body);
+
+  if (!parsed.success) {
+    return reply.code(400).send({
+      ok: false,
+      code: "invalid-project-path",
+      message: "Project path is required.",
+      issues: parsed.error.issues
+    });
+  }
+
+  const projectRoot = path.resolve(parsed.data.path);
   await openProject(projectRoot);
   return {
     ok: true,

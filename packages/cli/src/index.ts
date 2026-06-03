@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   findWorkspaceRoot,
   loadSchemaRegistry,
@@ -13,8 +14,14 @@ import { findBrokenReferences, indexProject } from "@origin-studio/project-index
 import { explainDiagnostic, validateFile, validateProject } from "@origin-studio/validator";
 
 async function main(): Promise<void> {
-  const repoRoot = await findWorkspaceRoot(path.dirname(new URL(import.meta.url).pathname));
+  const currentFile = fileURLToPath(import.meta.url);
+  const repoRoot = await findWorkspaceRoot(path.dirname(currentFile));
   const schemaDir = await resolveSchemaDir(repoRoot);
+
+  if (process.env.ORIGIN_STUDIO_DEBUG === "true") {
+    print(JSON.stringify({ repoRoot, schemaDir }, null, 2));
+  }
+
   if (!schemaDir) {
     print("origin-creator-schemas not found; using builtin MVP schemas.");
   }
