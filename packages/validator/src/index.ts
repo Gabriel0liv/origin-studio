@@ -1,7 +1,6 @@
 import {
   type Diagnostic,
   type IndexedEntry,
-  formatNamespacedId,
   getLineRange,
   isObject,
   readJsonFile
@@ -16,6 +15,15 @@ import { type ProjectIndex, getTag } from "@origin-studio/project-indexer";
 export interface ValidationContext {
   index: ProjectIndex;
   registry: SchemaRegistry;
+}
+
+interface ValidateNodeArgs {
+  value: Record<string, unknown>;
+  schemaKind: string;
+  filePath: string;
+  raw: string;
+  jsonPath: string;
+  context: ValidationContext;
 }
 
 export async function validateProject(context: ValidationContext): Promise<Diagnostic[]> {
@@ -56,26 +64,100 @@ async function validateEntry(entry: IndexedEntry, context: ValidationContext): P
     return diagnostics;
   }
 
-  const type = typeof document.data.type === "string" ? document.data.type : undefined;
   const schemaKind = inferSchemaKind(entry);
+  const rootDefinition = getTypeDefinition(context.registry, schemaKind, "__root__");
+  if (rootDefinition) {
+    diagnostics.push(
+      ...validateDefinitionFields(entry.filePath, document.raw, document.data, rootDefinition)
+    );
+  }
+
+  diagnostics.push(
+    ...validateNode({
+      value: document.data,
+      schemaKind,
+      filePath: entry.filePath,
+      raw: document.raw,
+      jsonPath: "$",
+      context
+    })
+  );
+  diagnostics.push(...validateReferences(entry, context));
+  return diagnostics;
+}
+
+function validateNode(args: ValidateNodeArgs): Diagnostic[] {
+  const { value, schemaKind, filePath, raw, jsonPath, context } = args;
+  const diagnostics: Diagnostic[] = [];
+  const type = typeof value.type === "string" ? value.type : undefined;
   const definition = type ? getTypeDefinition(context.registry, schemaKind, type) : undefined;
 
-  if (type && !definition) {
+  if (type && hasSchemaKind(context.registry, schemaKind) && !definition) {
     diagnostics.push({
       id: "unknown-type",
       severity: "error",
-      filePath: entry.filePath,
-      range: getLineRange(document.raw, `"${type}"`),
+      filePath,
+      range: getLineRange(raw, `"${type}"`),
       message: `Unknown ${schemaKind} type "${type}".`
     });
   }
 
   if (definition) {
-    diagnostics.push(...validateDefinitionFields(entry.filePath, document.raw, document.data, definition));
+    diagnostics.push(...validateDefinitionFields(filePath, raw, value, definition));
   }
 
-  diagnostics.push(...validateReferences(entry, context));
-  diagnostics.push(...validateCommonRules(entry, document.raw, document.data));
+  diagnostics.push(...validateCommonRules(filePath, raw, value));
+
+  for (const [key, child] of Object.entries(value)) {
+    const childKind = inferNestedSchemaKind(schemaKind, key, child);
+    if (!childKind) continue;
+
+    if (Array.isArray(child)) {
+      child.forEach((item, index) => {
+        if (isObject(item)) {
+          diagnostics.push(
+            ...validateNode({
+              value: item,
+              schemaKind: childKind,
+              filePath,
+              raw,
+              jsonPath: `${jsonPath}.${key}[${index}]`,
+              context
+            })
+          );
+        }
+      });
+    } else if (isObject(child)) {
+      diagnostics.push(
+        ...validateNode({
+          value: child,
+          schemaKind: childKind,
+          filePath,
+          raw,
+          jsonPath: `${jsonPath}.${key}`,
+          context
+        })
+      );
+    }
+  }
+
+  if (value.type === "origins:multiple") {
+    const ignored = new Set(["type", "name", "description", "condition", "loading_priority", "hidden", "badges"]);
+    for (const [key, child] of Object.entries(value)) {
+      if (ignored.has(key) || !isObject(child)) continue;
+      diagnostics.push(
+        ...validateNode({
+          value: child,
+          schemaKind: "power",
+          filePath,
+          raw,
+          jsonPath: `${jsonPath}.${key}`,
+          context
+        })
+      );
+    }
+  }
+
   return diagnostics;
 }
 
@@ -130,22 +212,53 @@ function validateReferences(entry: IndexedEntry, context: ValidationContext): Di
     switch (reference.kind) {
       case "power":
         if (!context.index.byId[reference.id] && !entry.subpowerIds.includes(reference.id)) {
-          diagnostics.push(makeMissingRef("missing-power-reference", entry.filePath, `Power reference "${reference.id}" does not exist.`));
+          diagnostics.push(
+            makeMissingRef(
+              "missing-power-reference",
+              entry.filePath,
+              `Power reference "${reference.id}" does not exist.`
+            )
+          );
+        }
+        break;
+      case "origin":
+        if (!context.index.byId[reference.id]) {
+          diagnostics.push(
+            makeMissingRef(
+              "missing-origin-reference",
+              entry.filePath,
+              `Origin reference "${reference.id}" does not exist.`
+            )
+          );
         }
         break;
       case "item_modifier":
         if (!context.index.byId[reference.id]) {
-          diagnostics.push(makeMissingRef("missing-item-modifier-reference", entry.filePath, `Item modifier reference "${reference.id}" does not exist.`));
+          diagnostics.push(
+            makeMissingRef(
+              "missing-item-modifier-reference",
+              entry.filePath,
+              `Item modifier reference "${reference.id}" does not exist.`
+            )
+          );
         }
         break;
       case "tag":
         if (!getTag(context.index, reference.id)) {
-          diagnostics.push(makeMissingRef("missing-tag-reference", entry.filePath, `Tag reference "${reference.id}" does not exist.`));
+          diagnostics.push(
+            makeMissingRef("missing-tag-reference", entry.filePath, `Tag reference "${reference.id}" does not exist.`)
+          );
         }
         break;
       case "resource":
-        if (!context.index.byId[reference.id] && !entry.resources.includes(reference.id)) {
-          diagnostics.push(makeMissingRef("missing-resource-reference", entry.filePath, `Resource reference "${reference.id}" does not exist.`));
+        if (!context.index.entries.some((candidate) => candidate.resourceDefinitions.includes(reference.id))) {
+          diagnostics.push(
+            makeMissingRef(
+              "missing-resource-reference",
+              entry.filePath,
+              `Resource reference "${reference.id}" does not exist.`
+            )
+          );
         }
         break;
       default:
@@ -157,7 +270,7 @@ function validateReferences(entry: IndexedEntry, context: ValidationContext): Di
 }
 
 function validateCommonRules(
-  entry: IndexedEntry,
+  filePath: string,
   raw: string,
   data: Record<string, unknown>
 ): Diagnostic[] {
@@ -168,7 +281,7 @@ function validateCommonRules(
     diagnostics.push({
       id: "invalid-inverted-type",
       severity: "error",
-      filePath: entry.filePath,
+      filePath,
       range: getLineRange(raw, `"origins:inverted"`),
       message: '`origins:inverted` nao e um type valido. Use `"inverted": true` dentro da propria condicao.',
       quickFix: {
@@ -182,7 +295,7 @@ function validateCommonRules(
     diagnostics.push({
       id: "action-on-hit-invalid-chance",
       severity: "error",
-      filePath: entry.filePath,
+      filePath,
       range: getLineRange(raw, '"chance"'),
       message: "origins:action_on_hit nao aceita `chance` diretamente. Use `bientity_condition` com `origins:chance`."
     });
@@ -192,7 +305,7 @@ function validateCommonRules(
     diagnostics.push({
       id: "action-on-hit-invalid-condition",
       severity: "error",
-      filePath: entry.filePath,
+      filePath,
       range: getLineRange(raw, '"condition"'),
       message: "origins:action_on_hit nao aceita `condition` diretamente. Use `bientity_condition`, `damage_condition` ou condicoes especificas do contexto."
     });
@@ -202,7 +315,7 @@ function validateCommonRules(
     diagnostics.push({
       id: "active-self-cooldown-warning",
       severity: "warning",
-      filePath: entry.filePath,
+      filePath,
       message: "Se a acao pode falhar, considere separar cooldown em `origins:multiple` e acionar `trigger_cooldown` somente no branch de sucesso."
     });
   }
@@ -211,22 +324,18 @@ function validateCommonRules(
     diagnostics.push({
       id: "multiple-without-need",
       severity: "info",
-      filePath: entry.filePath,
+      filePath,
       message: "`origins:multiple` e util para agrupar subpowers, mas nao e obrigatorio para toda habilidade."
     });
   }
 
   if (type === "origins:execute_command" && typeof data.command === "string") {
     const command = data.command;
-    if (
-      command.includes("effect give") ||
-      command.includes("playsound") ||
-      command.includes("particle")
-    ) {
+    if (command.includes("effect give") || command.includes("playsound") || command.includes("particle")) {
       diagnostics.push({
         id: "prefer-native-action",
         severity: "warning",
-        filePath: entry.filePath,
+        filePath,
         message: "`origins:execute_command` foi usado onde pode existir uma acao nativa equivalente, como `origins:apply_effect`, `origins:play_sound` ou `origins:spawn_particles`."
       });
     }
@@ -236,7 +345,7 @@ function validateCommonRules(
     diagnostics.push({
       id: "interval-too-low",
       severity: "warning",
-      filePath: entry.filePath,
+      filePath,
       message: "interval menor que 20 pode ser pesado em runtime."
     });
   }
@@ -245,9 +354,59 @@ function validateCommonRules(
 }
 
 function inferSchemaKind(entry: IndexedEntry): string {
-  if (entry.kind === "power") return "power";
-  if (entry.kind === "item_modifier") return "item_modifier";
-  return "condition";
+  switch (entry.kind) {
+    case "power":
+      return "power";
+    case "origin":
+      return "origin";
+    case "origin_layer":
+      return "origin_layer";
+    case "item_modifier":
+      return "item_modifier";
+    case "tag":
+      return "tag";
+    case "damage_type":
+      return "damage_type";
+    default:
+      return "condition";
+  }
+}
+
+function inferNestedSchemaKind(
+  parentSchemaKind: string,
+  key: string,
+  value: unknown
+): string | undefined {
+  if (!isObject(value) && !Array.isArray(value)) return undefined;
+
+  if (key === "bientity_action") return "bientity_action";
+  if (
+    key === "entity_action" ||
+    key === "if_action" ||
+    key === "else_action" ||
+    key === "rising_action" ||
+    key === "falling_action" ||
+    key === "self_action" ||
+    key === "attacker_action"
+  ) {
+    return "entity_action";
+  }
+  if (key === "actor_action" || key === "target_action") {
+    return parentSchemaKind === "bientity_action" ? "bientity_action" : "entity_action";
+  }
+  if (key === "condition" || key === "entity_condition" || key === "target_condition") {
+    return "condition";
+  }
+  if (key === "bientity_condition") return "bientity_condition";
+  if (key === "item_condition") return "item_condition";
+  if (key === "damage_condition") return "damage_condition";
+  if (key === "actions" || key === "conditions") return parentSchemaKind;
+
+  return undefined;
+}
+
+function hasSchemaKind(registry: SchemaRegistry, kind: string): boolean {
+  return Object.prototype.hasOwnProperty.call(registry.typesByKind, kind);
 }
 
 function isLikelySubpower(type: string, key: string, value: unknown): boolean {

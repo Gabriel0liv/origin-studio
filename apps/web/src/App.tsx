@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { AlertCircle, FileJson, FolderOpen, Hammer, Search, Server, Sparkles } from "lucide-react";
@@ -68,6 +68,9 @@ const explainMap: Record<string, string> = {
 };
 
 export function App() {
+  const socketRef = useRef<WebSocket | null>(null);
+  const selectedPathRef = useRef<string | undefined>(undefined);
+  const projectRootRef = useRef<string | undefined>(undefined);
   const [serverStatus, setServerStatus] = useState<string>("checking");
   const [projectRoot, setProjectRoot] = useState<string>();
   const [projectInput, setProjectInput] = useState("");
@@ -97,7 +100,7 @@ export function App() {
     }
   }, [draftContent, fileContent?.data]);
 
-  const loadProjectState = useEffectEvent(async () => {
+  const loadProjectState = useCallback(async () => {
     const [projectResponse, treeResponse, problemsResponse] = await Promise.all([
       fetchJson<{ projectRoot?: string }>("/api/project"),
       fetchJson<TreeNode[]>("/api/files/tree").catch(() => []),
@@ -108,9 +111,9 @@ export function App() {
     setProjectInput(projectResponse.projectRoot ?? "");
     setTree(treeResponse);
     setDiagnostics(problemsResponse);
-  });
+  }, []);
 
-  const loadFile = useEffectEvent(async (filePath: string) => {
+  const loadFile = useCallback(async (filePath: string) => {
     const result = await fetchJson<FileContentResponse>(
       `/api/files/content?path=${encodeURIComponent(filePath)}`
     );
@@ -130,7 +133,15 @@ export function App() {
     } else {
       setSchema(null);
     }
-  });
+  }, []);
+
+  useEffect(() => {
+    selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
+
+  useEffect(() => {
+    projectRootRef.current = projectRoot;
+  }, [projectRoot]);
 
   useEffect(() => {
     void fetchJson<{ ok: boolean; hasProject: boolean }>("/api/health")
@@ -140,7 +151,10 @@ export function App() {
   }, [loadProjectState]);
 
   useEffect(() => {
+    if (socketRef.current) return;
+
     const socket = new WebSocket(`${window.location.origin.replace("http", "ws")}/api/live`);
+    socketRef.current = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data) as { event: string; payload: unknown };
       if (message.event === "diagnosticsUpdated") {
@@ -149,14 +163,26 @@ export function App() {
       if (message.event === "projectOpened" || message.event === "indexUpdated") {
         void loadProjectState();
       }
-      if (message.event === "fileChanged" && selectedPath) {
+      if (message.event === "fileChanged") {
         const payload = message.payload as { filePath?: string };
-        if (payload.filePath && projectRoot && `${projectRoot}/${payload.filePath}`.replace(/\\/g, "/") === selectedPath.replace(/\\/g, "/")) {
-          void loadFile(selectedPath);
+        const selected = selectedPathRef.current;
+        const root = projectRootRef.current;
+        if (payload.filePath && selected && root) {
+          const changedPath = `${root}/${payload.filePath}`.replace(/\\/g, "/");
+          if (changedPath === selected.replace(/\\/g, "/")) {
+            void loadFile(selected);
+          }
         }
       }
     };
-    return () => socket.close();
+    socket.onerror = (error) => {
+      console.warn("[origin-studio] websocket error", error);
+    };
+
+    return () => {
+      socketRef.current = null;
+      socket.close();
+    };
   }, [loadProjectState, loadFile]);
 
   useEffect(() => {

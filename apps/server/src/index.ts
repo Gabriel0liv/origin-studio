@@ -14,10 +14,12 @@ import {
   relativeUnixPath
 } from "@origin-studio/core";
 import {
+  findWorkspaceRoot,
   getSchemaKinds,
   getTypeDefinition,
   getTypesForKind,
   loadSchemaRegistry,
+  resolveSchemaDir,
   type SchemaRegistry
 } from "@origin-studio/origin-creator-adapter";
 import { listProfiles, loadProfile, type OriginStudioProfileConfig } from "@origin-studio/profiles";
@@ -33,14 +35,22 @@ interface ServerState {
   watcher?: FSWatcher;
 }
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
-const schemaDir = path.join(repoRoot, "schemas", "origin-creator-schemas");
+const repoRoot = await findWorkspaceRoot(path.dirname(new URL(import.meta.url).pathname));
+const schemaDir = await resolveSchemaDir(repoRoot);
 const host = "127.0.0.1";
 const port = 8787;
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: {
+    level: process.env.ORIGIN_STUDIO_LOG_LEVEL ?? "warn"
+  }
+});
 await app.register(cors, { origin: [/^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/localhost:\d+$/] });
 await app.register(websocket);
+
+if (!schemaDir) {
+  app.log.warn("origin-creator-schemas not found; using builtin MVP schemas.");
+}
 
 const state: ServerState = {
   diagnostics: [],
@@ -207,7 +217,14 @@ async function openProject(projectRoot: string): Promise<void> {
   await state.watcher?.close();
   state.watcher = chokidar.watch(projectRoot, {
     ignoreInitial: true,
-    ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"]
+    ignored: [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/.vite/**",
+      "**/origin-creator-schemas/.git/**",
+      "**/schemas/origin-creator-schemas/.git/**"
+    ]
   });
 
   state.watcher.on("add", (filePath) => void onExternalChange(filePath));

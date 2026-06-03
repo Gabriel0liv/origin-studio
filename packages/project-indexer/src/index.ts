@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   type FileReference,
   type IndexedEntry,
@@ -12,17 +11,19 @@ import {
   relativeUnixPath,
   walkFiles
 } from "@origin-studio/core";
+
 export type { ProjectIndex } from "@origin-studio/core";
 
 const knownReferenceKeys = new Map<string, FileReference["kind"]>([
   ["power", "power"],
-  ["powers", "power"],
   ["tag", "tag"],
   ["resource", "resource"],
   ["item_modifier", "item_modifier"],
   ["modifier", "item_modifier"],
   ["function", "function"],
-  ["damage_type", "damage_type"]
+  ["damage_type", "damage_type"],
+  ["origin", "origin"],
+  ["layer", "origin_layer"]
 ]);
 
 export async function indexProject(projectRoot: string): Promise<ProjectIndex> {
@@ -43,10 +44,7 @@ export async function indexProject(projectRoot: string): Promise<ProjectIndex> {
   for (const entry of entries) {
     for (const reference of entry.references) {
       referencesTo[reference.id] ??= [];
-      const bucket = referencesTo[reference.id];
-      if (bucket) {
-        bucket.push(reference);
-      }
+      referencesTo[reference.id]?.push(reference);
     }
   }
 
@@ -90,7 +88,11 @@ export function getReferencesTo(index: ProjectIndex, id: string): FileReference[
 
 export function findBrokenReferences(index: ProjectIndex): FileReference[] {
   return index.entries.flatMap((entry) =>
-    entry.references.filter((reference) => !index.byId[reference.id] && reference.kind !== "resource")
+    entry.references.filter((reference) =>
+      reference.kind === "resource"
+        ? !index.entries.some((candidate) => candidate.resourceDefinitions.includes(reference.id))
+        : !index.byId[reference.id]
+    )
   );
 }
 
@@ -119,28 +121,27 @@ async function indexFile(
       namespace,
       relativePath,
       references: [],
-      resources: [],
+      resourceDefinitions: [],
+      resourceReferences: [],
       subpowerIds: []
     };
   }
 
   const document = await readJsonFile(filePath);
   const data = document.data;
-  const references = extractReferences(filePath, data);
-  const resources = extractResourceIds(data);
-  const subpowerIds =
-    kind === "power" ? extractSubpowerIds(formatNamespacedId(id), data) : [];
+  const namespacedId = kind === "tag" ? id : formatNamespacedId(id);
 
   return {
-    id: kind === "tag" ? id : formatNamespacedId(id),
+    id: namespacedId,
     kind,
     filePath,
     namespace,
     relativePath,
     data,
-    references,
-    resources,
-    subpowerIds
+    references: extractReferences(filePath, data),
+    resourceDefinitions: kind === "power" ? extractResourceDefinitions(namespacedId, data) : [],
+    resourceReferences: extractResourceReferences(data),
+    subpowerIds: kind === "power" ? extractSubpowerIds(namespacedId, data) : []
   };
 }
 
@@ -164,17 +165,35 @@ function extractReferences(sourcePath: string, value: unknown, jsonPath = "$"): 
         sourcePath,
         jsonPath: `${jsonPath}.${key}`
       });
+    } else if (key === "powers" && Array.isArray(child)) {
+      for (const powerId of child) {
+        if (typeof powerId === "string") {
+          refs.push({
+            kind: "power",
+            id: formatNamespacedId(powerId),
+            sourcePath,
+            jsonPath: `${jsonPath}.${key}`
+          });
+        }
+      }
     } else if (key === "origins" && Array.isArray(child)) {
       for (const originId of child) {
         if (typeof originId === "string") {
           refs.push({
-            kind: "power",
+            kind: "origin",
             id: formatNamespacedId(originId),
             sourcePath,
             jsonPath: `${jsonPath}.${key}`
           });
         }
       }
+    } else if (key === "default_origin" && typeof child === "string") {
+      refs.push({
+        kind: "origin",
+        id: formatNamespacedId(child),
+        sourcePath,
+        jsonPath: `${jsonPath}.${key}`
+      });
     }
 
     refs.push(...extractReferences(sourcePath, child, `${jsonPath}.${key}`));
@@ -183,27 +202,65 @@ function extractReferences(sourcePath: string, value: unknown, jsonPath = "$"): 
   return refs;
 }
 
-function extractResourceIds(value: unknown): string[] {
-  if (!isObject(value)) return [];
-  const resources = new Set<string>();
+function extractResourceDefinitions(baseId: string, value: unknown): string[] {
+  const definitions = new Set<string>();
 
-  if (typeof value.resource === "string") {
-    resources.add(formatNamespacedId(value.resource));
-  }
+  const walk = (node: unknown, currentId?: string) => {
+    if (!isObject(node)) return;
 
-  if (Array.isArray(value.powers)) {
-    for (const power of value.powers) {
-      if (typeof power === "string") resources.add(formatNamespacedId(power));
+    if (node.type === "origins:resource" && currentId) {
+      definitions.add(currentId);
     }
-  }
 
-  for (const child of Object.values(value)) {
-    for (const resource of extractResourceIds(child)) {
-      resources.add(resource);
+    if (node.type === "origins:multiple" && currentId) {
+      const ignored = new Set(["type", "name", "description", "condition", "loading_priority", "hidden", "badges"]);
+      for (const [key, child] of Object.entries(node)) {
+        if (ignored.has(key)) continue;
+        if (isObject(child)) {
+          walk(child, `${currentId}_${key}`);
+        }
+      }
+      return;
     }
-  }
 
-  return [...resources];
+    for (const child of Object.values(node)) {
+      walk(child, currentId);
+    }
+  };
+
+  walk(value, baseId);
+  return [...definitions];
+}
+
+function extractResourceReferences(value: unknown): string[] {
+  const references = new Set<string>();
+
+  const walk = (node: unknown) => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    if (!isObject(node)) return;
+
+    const type = typeof node.type === "string" ? node.type : undefined;
+    if (
+      typeof node.resource === "string" &&
+      (type === "origins:change_resource" ||
+        type === "origins:modify_resource" ||
+        type === "origins:set_resource" ||
+        type === "origins:resource")
+    ) {
+      references.add(formatNamespacedId(node.resource));
+    }
+
+    for (const child of Object.values(node)) {
+      walk(child);
+    }
+  };
+
+  walk(value);
+  return [...references];
 }
 
 function extractSubpowerIds(baseId: string, value: unknown): string[] {

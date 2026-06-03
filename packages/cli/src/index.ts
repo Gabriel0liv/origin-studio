@@ -1,29 +1,35 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { constants } from "node:fs";
-import { readJsonFile } from "@origin-studio/core";
-import { loadSchemaRegistry } from "@origin-studio/origin-creator-adapter";
+import path from "node:path";
+import {
+  findWorkspaceRoot,
+  loadSchemaRegistry,
+  resolveSchemaDir
+} from "@origin-studio/origin-creator-adapter";
 import { loadProfile } from "@origin-studio/profiles";
 import { findBrokenReferences, indexProject } from "@origin-studio/project-indexer";
 import { explainDiagnostic, validateFile, validateProject } from "@origin-studio/validator";
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
-const schemaDir = path.join(repoRoot, "schemas", "origin-creator-schemas");
-
 async function main(): Promise<void> {
+  const repoRoot = await findWorkspaceRoot(path.dirname(new URL(import.meta.url).pathname));
+  const schemaDir = await resolveSchemaDir(repoRoot);
+  if (!schemaDir) {
+    print("origin-creator-schemas not found; using builtin MVP schemas.");
+  }
+
   const [command, target, extra] = process.argv.slice(2);
 
   switch (command) {
     case "open":
-      print(`Open the web UI at http://localhost:5173 after starting \`pnpm dev\`.`);
+      print("Open the web UI at http://localhost:5173 after starting `pnpm dev`.");
       print(`Requested project: ${path.resolve(target ?? ".")}`);
       return;
     case "validate":
-      return runValidate(path.resolve(target ?? "."));
+      return runValidate(path.resolve(target ?? "."), schemaDir);
     case "validate-file":
-      return runValidateFile(path.resolve(target ?? "."));
+      return runValidateFile(path.resolve(target ?? "."), schemaDir);
     case "index":
       return runIndex(path.resolve(target ?? "."));
     case "doctor":
@@ -32,8 +38,8 @@ async function main(): Promise<void> {
       print(explainDiagnostic(target ?? ""));
       return;
     case "schemas":
-      if (target === "sync") return syncSchemas();
-      if (target === "status") return showSchemaStatus();
+      if (target === "sync") return syncSchemas(repoRoot, schemaDir);
+      if (target === "status") return showSchemaStatus(schemaDir);
       break;
     default:
       printHelp();
@@ -45,7 +51,7 @@ async function main(): Promise<void> {
   }
 }
 
-async function runValidate(projectRoot: string): Promise<void> {
+async function runValidate(projectRoot: string, schemaDir?: string): Promise<void> {
   const index = await indexProject(projectRoot);
   const registry = await loadSchemaRegistry(schemaDir);
   await loadProfile(projectRoot);
@@ -67,7 +73,7 @@ async function runValidate(projectRoot: string): Promise<void> {
   process.exitCode = diagnostics.some((item) => item.severity === "error") ? 1 : 0;
 }
 
-async function runValidateFile(filePath: string): Promise<void> {
+async function runValidateFile(filePath: string, schemaDir?: string): Promise<void> {
   const projectRoot = findProjectRoot(filePath);
   const index = await indexProject(projectRoot);
   const registry = await loadSchemaRegistry(schemaDir);
@@ -88,13 +94,17 @@ async function runValidateFile(filePath: string): Promise<void> {
 
 async function runIndex(projectRoot: string): Promise<void> {
   const index = await indexProject(projectRoot);
-  const summary = {
-    namespaces: index.namespaces,
-    counts: countByKind(index.entries),
-    brokenReferences: findBrokenReferences(index).length
-  };
-
-  print(JSON.stringify(summary, null, 2));
+  print(
+    JSON.stringify(
+      {
+        namespaces: index.namespaces,
+        counts: countByKind(index.entries),
+        brokenReferences: findBrokenReferences(index).length
+      },
+      null,
+      2
+    )
+  );
 }
 
 async function runDoctor(projectRoot: string): Promise<void> {
@@ -110,9 +120,8 @@ async function runDoctor(projectRoot: string): Promise<void> {
     issues.push(`Found ${brokenReferences.length} broken references.`);
   }
 
-  const samplePackMeta = path.join(projectRoot, "pack.mcmeta");
   try {
-    await access(samplePackMeta, constants.F_OK);
+    await access(path.join(projectRoot, "pack.mcmeta"), constants.F_OK);
   } catch {
     issues.push("pack.mcmeta was not found at the project root.");
   }
@@ -126,13 +135,14 @@ async function runDoctor(projectRoot: string): Promise<void> {
   process.exitCode = 1;
 }
 
-async function syncSchemas(): Promise<void> {
-  await mkdir(path.dirname(schemaDir), { recursive: true });
-  const gitDir = path.join(schemaDir, ".git");
+async function syncSchemas(repoRoot: string, schemaDir?: string): Promise<void> {
+  const targetDir = schemaDir ?? path.join(repoRoot, "schemas", "origin-creator-schemas");
+  await mkdir(path.dirname(targetDir), { recursive: true });
+  const gitDir = path.join(targetDir, ".git");
   const exists = await statSafe(gitDir);
   const command = exists
-    ? ["-C", schemaDir, "pull", "--ff-only"]
-    : ["clone", "https://github.com/mathgeniuszach/origin-creator-schemas.git", schemaDir];
+    ? ["-C", targetDir, "pull", "--ff-only"]
+    : ["clone", "https://github.com/mathgeniuszach/origin-creator-schemas.git", targetDir];
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn("git", command, { stdio: "inherit", shell: true });
@@ -142,15 +152,20 @@ async function syncSchemas(): Promise<void> {
     });
   });
 
-  const head = await readGitHead();
-  await writeFile(path.join(schemaDir, ".origin-studio-version.json"), JSON.stringify(head, null, 2));
-  print(`Schemas synced to ${schemaDir}`);
+  const head = await readGitHead(targetDir);
+  await writeFile(path.join(targetDir, ".origin-studio-version.json"), JSON.stringify(head, null, 2));
+  print(`Schemas synced to ${targetDir}`);
 }
 
-async function showSchemaStatus(): Promise<void> {
-  const versionFile = path.join(schemaDir, ".origin-studio-version.json");
+async function showSchemaStatus(schemaDir?: string): Promise<void> {
+  if (!schemaDir) {
+    print("Schemas not synced yet. Run `origin-studio schemas sync`.");
+    process.exitCode = 1;
+    return;
+  }
+
   try {
-    const content = await readFile(versionFile, "utf8");
+    const content = await readFile(path.join(schemaDir, ".origin-studio-version.json"), "utf8");
     print(content);
   } catch {
     print("Schemas not synced yet. Run `origin-studio schemas sync`.");
@@ -158,9 +173,8 @@ async function showSchemaStatus(): Promise<void> {
   }
 }
 
-async function readGitHead(): Promise<Record<string, string>> {
-  const headFile = path.join(schemaDir, ".git", "HEAD");
-  const head = await readFile(headFile, "utf8");
+async function readGitHead(schemaDir: string): Promise<Record<string, string>> {
+  const head = await readFile(path.join(schemaDir, ".git", "HEAD"), "utf8");
   return { syncedAt: new Date().toISOString(), head: head.trim() };
 }
 
@@ -196,14 +210,14 @@ function print(message: string): void {
 }
 
 function printHelp(): void {
-  print(`origin-studio open <path>`);
-  print(`origin-studio validate <path>`);
-  print(`origin-studio validate-file <file>`);
-  print(`origin-studio index <path>`);
-  print(`origin-studio doctor <path>`);
-  print(`origin-studio explain <diagnostic-id>`);
-  print(`origin-studio schemas sync`);
-  print(`origin-studio schemas status`);
+  print("origin-studio open <path>");
+  print("origin-studio validate <path>");
+  print("origin-studio validate-file <file>");
+  print("origin-studio index <path>");
+  print("origin-studio doctor <path>");
+  print("origin-studio explain <diagnostic-id>");
+  print("origin-studio schemas sync");
+  print("origin-studio schemas status");
 }
 
 main().catch((error) => {

@@ -60,7 +60,15 @@ export interface JsonDocument<T = unknown> {
 }
 
 export interface FileReference {
-  kind: "power" | "item_modifier" | "tag" | "resource" | "function" | "damage_type";
+  kind:
+    | "origin"
+    | "origin_layer"
+    | "power"
+    | "item_modifier"
+    | "tag"
+    | "resource"
+    | "function"
+    | "damage_type";
   id: string;
   sourcePath: string;
   jsonPath?: string;
@@ -74,7 +82,8 @@ export interface IndexedEntry {
   relativePath: string;
   data?: unknown;
   references: FileReference[];
-  resources: string[];
+  resourceDefinitions: string[];
+  resourceReferences: string[];
   subpowerIds: string[];
 }
 
