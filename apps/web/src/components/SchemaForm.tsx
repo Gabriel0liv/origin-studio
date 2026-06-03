@@ -28,12 +28,14 @@ export function SchemaForm({
   const identityNames = getIdentityFields(kind, value);
   const advancedNames = new Set(["hidden", "loading_priority", "badges", "unchoosable", "enabled", "replace"]);
   const displayNames = new Set(["icon", "impact", "order"]);
+  const typeFields = identityNames.includes("type") ? ["type"] : [];
+  const metadataFields = identityNames.filter((name) => name !== "type");
 
   const visibleSchemaFields = allFields.filter((field) => !identityNames.includes(field.name));
   const knownFieldNames = new Set([...identityNames, ...visibleSchemaFields.map((field) => field.name)]);
   const customFields = Object.keys(value).filter((key) => !knownFieldNames.has(key));
 
-  const basicFields = identityNames.filter((name) => name in value || name === "name" || name === "description");
+  const basicFields = metadataFields.filter((name) => name in value || name === "name" || name === "description");
   const displayFields = visibleSchemaFields.filter((field) => displayNames.has(field.name) && field.name in value);
   const advancedFields = visibleSchemaFields.filter((field) => advancedNames.has(field.name) && field.name in value);
   const configurationFields = visibleSchemaFields.filter(
@@ -43,7 +45,7 @@ export function SchemaForm({
 
   return (
     <div className="schema-form compact">
-      <SchemaSection title={sectionTitle(kind, "basic")} defaultOpen>
+      <SchemaSection title="Metadata" defaultOpen>
         {basicFields.map((fieldName) => (
           <FieldRenderer
             key={fieldName}
@@ -60,6 +62,26 @@ export function SchemaForm({
           />
         ))}
       </SchemaSection>
+
+      {typeFields.length > 0 ? (
+        <SchemaSection title="Type" defaultOpen>
+          {typeFields.map((fieldName) => (
+            <FieldRenderer
+              key={fieldName}
+              label={startCase(fieldName)}
+              path={[fieldName]}
+              value={value[fieldName]}
+              field={buildIdentityField(kind, schema, fieldName)}
+              diagnostics={diagnostics}
+              optionsByKind={optionsByKind}
+              lookup={lookup}
+              onValueChange={onValueChange}
+              onOpenReference={onOpenReference}
+              {...(onFieldFocus ? { onFieldFocus } : {})}
+            />
+          ))}
+        </SchemaSection>
+      ) : null}
 
       {displayFields.length > 0 ? (
         <SchemaSection title="Icon & Display" defaultOpen={kind === "origin"}>
@@ -140,6 +162,7 @@ export function SchemaForm({
 
       <SchemaSection title="Custom Fields">
         <div className="builder-section-fields">
+          <p className="custom-field-note">Custom fields are preserved exactly as-is when the loaded schema does not document them.</p>
           {customFields.map((fieldName) => (
             <FieldRenderer
               key={fieldName}
@@ -223,9 +246,7 @@ function inferCustomType(value: unknown): string {
   return "string";
 }
 
-function sectionTitle(kind: string, section: "basic" | "configuration"): string {
-  if (section === "basic") return "Basic";
-
+function sectionTitle(kind: string, section: "configuration"): string {
   switch (kind) {
     case "power":
       return "Configuration";

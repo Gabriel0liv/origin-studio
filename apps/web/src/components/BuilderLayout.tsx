@@ -11,7 +11,7 @@ export function BuilderLayout({
     <main className="workspace">
       <section className="editor">
         {header}
-        <div className="editor-scroll">{builder}</div>
+        <div className="editor-body">{builder}</div>
       </section>
     </main>
   );

@@ -5,8 +5,10 @@ import { apiBase, wsBase } from "./config";
 import { AppShell } from "./components/AppShell";
 import { BuilderLayout } from "./components/BuilderLayout";
 import { FileHeader } from "./components/FileHeader";
+import { FunctionEditor } from "./components/FunctionEditor";
 import { ItemModifierBuilder } from "./components/ItemModifierBuilder";
 import { JsonDrawer } from "./components/JsonDrawer";
+import { JsonOnlyEditor } from "./components/JsonOnlyEditor";
 import { NewFileWizard } from "./components/NewFileWizard";
 import { OriginBuilder } from "./components/OriginBuilder";
 import { OriginLayerBuilder } from "./components/OriginLayerBuilder";
@@ -17,7 +19,7 @@ import { ReferencesPanel } from "./components/ReferencesPanel";
 import { SidePanelDrawer } from "./components/SidePanelDrawer";
 import { TagBuilder } from "./components/TagBuilder";
 import type { Diagnostic, FileContentResponse, FileReference, NewFileDraft, NewFileKind, OpenDocumentState, SchemaField, SchemaType, TreeNode } from "./types";
-import { basename, buildDefaultDraft, buildDefinitionsCreated, buildLookup, buildNewFileContent, buildNewFilePath, buildReferenceItem, bySeverity, collapseDiagnostics, collectReferenceGroups, copyToClipboard, deriveIdFromRelativePath, explainMap, fetchJson, flattenFiles, formatJsonDocument, getValueAtPath, groupNodes, inferNamespaces, inferSchemaKindForFile, isObject, labelForKind, loadRecentProjects, rememberProject, setValueAtPath, toProjectRelative } from "./utils";
+import { buildDefaultDraft, buildDefinitionsCreated, buildLookup, buildNewFileContent, buildNewFilePath, buildReferenceItem, bySeverity, collapseDiagnostics, collectReferenceGroups, deriveIdFromRelativePath, explainMap, fetchJson, flattenFiles, formatJsonDocument, getValueAtPath, groupNodes, inferNamespaces, inferSchemaKindForFile, isObject, loadRecentProjects, rememberProject, setValueAtPath, toProjectRelative } from "./utils";
 
 const schemaKinds = ["power", "origin", "origin_layer", "item_modifier", "tag", "condition", "entity_action", "bientity_action", "bientity_condition", "item_condition", "damage_condition"];
 
@@ -40,7 +42,7 @@ export function App() {
   const [wizardDraft, setWizardDraft] = useState<NewFileDraft>(buildDefaultDraft("power", ["example"]));
   const [filter, setFilter] = useState("");
   const [selectedField, setSelectedField] = useState<{ path: Array<string | number>; field: SchemaField } | null>(null);
-  const [drawerMode, setDrawerMode] = useState<"inspector" | "problems" | "references" | "schema" | null>(null);
+  const [drawerMode, setDrawerMode] = useState<"help" | "problems" | "references" | null>(null);
 
   const allFiles = useMemo(() => flattenFiles(tree), [tree]);
   const groupedFiles = useMemo(() => groupNodes(allFiles, filter), [allFiles, filter]);
@@ -69,14 +71,12 @@ export function App() {
 
   const drawerTitle = useMemo(() => {
     switch (drawerMode) {
-      case "inspector":
-        return "Field Inspector";
+      case "help":
+        return "Help";
       case "problems":
         return "Problems";
       case "references":
         return "References";
-      case "schema":
-        return "Raw Schema";
       default:
         return "";
     }
@@ -279,6 +279,14 @@ export function App() {
     setWizardOpen(true);
   }
 
+  function importProject() {
+    const suggested = projectRoot ?? projectInput;
+    const nextPath = window.prompt("Enter the datapack folder path:", suggested);
+    if (nextPath?.trim()) {
+      void openProject(nextPath);
+    }
+  }
+
   async function createFolder() {
     if (!projectRoot) return;
 
@@ -351,6 +359,8 @@ export function App() {
         setProjectError(undefined);
       }}
       onOpenProject={(path) => void openProject(path)}
+      onImportProject={importProject}
+      onOpenHelp={() => setDrawerMode("help")}
       onCreateFolder={() => void createFolder()}
       onQuickCreate={openWizard}
       onFilterChange={setFilter}
@@ -385,10 +395,10 @@ export function App() {
     );
   }
 
-  const header = <FileHeader kindLabel={labelForKind(documentState?.kind)} fileName={documentState ? basename(documentState.relativePath) : undefined} directory={documentState ? toDirectory(documentState.relativePath) : undefined} absolutePath={documentState?.filePath} dirty={Boolean(documentState?.dirty)} problemCount={currentFileProblems.length} onSave={() => void saveFile()} onReload={() => void reloadFile()} onOpenJson={() => setIsJsonOpen(true)} onOpenProblems={() => setDrawerMode("problems")} onOpenReferences={() => setDrawerMode("references")} onOpenInspector={() => setDrawerMode("inspector")} onOpenSchema={() => setDrawerMode("schema")} />;
+  const header = <FileHeader kindLabel={labelForDocumentKind(documentState?.kind)} documentId={documentState ? deriveIdFromRelativePath(documentState.relativePath, documentState.kind) ?? documentState.relativePath.replace(/\\/g, "/") : undefined} directory={documentState ? toDirectory(documentState.relativePath) : undefined} absolutePath={documentState?.filePath} dirty={Boolean(documentState?.dirty)} problemCount={currentFileProblems.length} onSave={() => void saveFile()} onReload={() => void reloadFile()} onOpenJson={() => setIsJsonOpen(true)} onOpenProblems={() => setDrawerMode("problems")} onOpenReferences={() => setDrawerMode("references")} onOpenHelp={() => setDrawerMode("help")} />;
 
   const builder = documentState ? (
-    renderBuilder(documentState, schemaOptionsByKind, fileLookup, currentFileProblems, handleVisualValueChange, setSelectedField, (path) => void loadFile(path))
+    renderBuilder(documentState, schemaOptionsByKind, fileLookup, currentFileProblems, handleVisualValueChange, setSelectedField, (path) => void loadFile(path), () => setIsJsonOpen(true))
   ) : (
     <section className="empty-editor">
       <h2>Select a file or create a new one</h2>
@@ -405,31 +415,54 @@ export function App() {
       <SidePanelDrawer
         open={drawerMode !== null}
         title={drawerTitle}
-        description={drawerMode === "inspector" ? "Documentation and current value for the selected field." : drawerMode === "problems" ? "Current file first, then the rest of the project." : drawerMode === "references" ? "Open, copy, and inspect related IDs without leaving the builder." : "Schema registry data for the currently selected document type."}
+        description={drawerMode === "help" ? "Contextual help, links, and future flow guidance." : drawerMode === "problems" ? "Current file first, then the rest of the project." : "Open, copy, and inspect related IDs without leaving the builder."}
         onOpenChange={(open) => {
           if (!open) setDrawerMode(null);
         }}
       >
-        {drawerMode === "inspector" ? (
+        {drawerMode === "help" ? (
           <section className="inspector-card drawer-card">
-            {selectedField ? (
-              <div className="inspector-field-body">
-                <strong>{selectedField.field.name}</strong>
-                <small>{selectedField.field.type}</small>
-                {selectedField.field.description ? <p>{selectedField.field.description}</p> : null}
-                <pre className="json-preview">{JSON.stringify(selectedFieldValue, null, 2)}</pre>
-              </div>
-            ) : (
-              <p className="empty-state compact">Select a field in the builder to inspect it here.</p>
-            )}
+            <div className="inspector-group">
+              <h4>Current selection</h4>
+              {selectedField ? (
+                <div className="inspector-field-body">
+                  <strong>{selectedField.field.name}</strong>
+                  <small>{selectedField.field.type}</small>
+                  {selectedField.field.description ? <p>{selectedField.field.description}</p> : <p>Schema coverage is partial for this field. The current value is preserved.</p>}
+                  <pre className="json-preview">{JSON.stringify(selectedFieldValue, null, 2)}</pre>
+                </div>
+              ) : (
+                <p className="empty-state compact">Select a field in the builder to inspect it here.</p>
+              )}
+            </div>
+
+            <div className="inspector-group">
+              <h4>Flow Help</h4>
+              <p className="empty-state compact">
+                The future <code>@origin-studio/flow-help-adapter</code> will normalize <code>index.yaml</code> and the pages under <code>data/</code> from the <code>origins-flow-help</code> repository into guided local help.
+              </p>
+            </div>
+
+            <div className="inspector-group">
+              <h4>Useful links</h4>
+              <a className="ghost-button compact help-link" href="https://github.com/mathgeniuszach/origins-flow-help" target="_blank" rel="noreferrer">
+                origins-flow-help repository
+              </a>
+              <a className="ghost-button compact help-link" href="https://github.com/mathgeniuszach/origin-creator-schemas" target="_blank" rel="noreferrer">
+                origin-creator-schemas repository
+              </a>
+            </div>
+
+            <div className="inspector-group">
+              <h4>Loaded schema</h4>
+              {documentState?.schema ? <pre className="json-preview">{JSON.stringify(documentState.schema, null, 2)}</pre> : <p className="empty-state compact">No schema was resolved for this file yet.</p>}
+            </div>
           </section>
         ) : null}
 
         {drawerMode === "problems" ? <ProblemsPanel currentFileProblems={currentFileProblems.filter(bySeverity("all"))} projectProblems={projectProblems.filter(bySeverity("all"))} onExplain={(id) => window.alert(explainMap[id] ?? "No extended explanation is registered in the MVP yet.")} onApplyQuickFix={applyQuickFix} onGoToProblem={goToProblem} /> : null}
 
         {drawerMode === "references" ? <ReferencesPanel referenceGroups={referenceGroups} definitionsCreated={definitionsCreated} incomingReferences={documentState?.incomingReferences ?? []} onOpenFile={(path) => void loadFile(path)} /> : null}
-
-        {drawerMode === "schema" ? <section className="inspector-card drawer-card">{documentState?.schema ? <pre className="json-preview">{JSON.stringify(documentState.schema, null, 2)}</pre> : <p className="empty-state compact">No schema was resolved for this file yet.</p>}</section> : null}
       </SidePanelDrawer>
 
       <JsonDrawer
@@ -448,7 +481,7 @@ export function App() {
   );
 }
 
-function renderBuilder(documentState: OpenDocumentState, schemaOptionsByKind: Record<string, SchemaType[]>, fileLookup: ReturnType<typeof buildLookup>, currentFileProblems: Diagnostic[], onValueChange: (path: Array<string | number>, value: unknown) => void, onFieldFocus: (value: { path: Array<string | number>; field: SchemaField } | null) => void, onOpenReference: (path: string) => void) {
+function renderBuilder(documentState: OpenDocumentState, schemaOptionsByKind: Record<string, SchemaType[]>, fileLookup: ReturnType<typeof buildLookup>, currentFileProblems: Diagnostic[], onValueChange: (path: Array<string | number>, value: unknown) => void, onFieldFocus: (value: { path: Array<string | number>; field: SchemaField } | null) => void, onOpenReference: (path: string) => void, onOpenJson: () => void) {
   const commonProps = {
     value: documentState.parsed,
     schema: documentState.schema,
@@ -471,13 +504,10 @@ function renderBuilder(documentState: OpenDocumentState, schemaOptionsByKind: Re
       return <ItemModifierBuilder {...commonProps} />;
     case "tag":
       return <TagBuilder {...commonProps} />;
+    case "function":
+      return <FunctionEditor raw={documentState.raw} onOpenJson={onOpenJson} />;
     default:
-      return (
-        <section className="builder-empty">
-          <h3>No visual builder for this file type yet.</h3>
-          <p>Use Open JSON to edit this file directly.</p>
-        </section>
-      );
+      return <JsonOnlyEditor title="No visual builder for this file type yet." description="Use the advanced JSON drawer to edit this file directly while Origin Studio keeps the real file on disk in sync." onOpenJson={onOpenJson} />;
   }
 }
 
@@ -486,4 +516,25 @@ function toDirectory(relativePath?: string): string | undefined {
   const parts = relativePath.replace(/\\/g, "/").split("/");
   parts.pop();
   return parts.length > 0 ? `${parts.join("/")}/` : undefined;
+}
+
+function labelForDocumentKind(kind?: string): string {
+  switch (kind) {
+    case "origin":
+      return "Origin";
+    case "origin_layer":
+      return "Origin Layer";
+    case "power":
+      return "Power";
+    case "item_modifier":
+      return "Item Modifier";
+    case "tag":
+      return "Tag";
+    case "function":
+      return "Function";
+    case "damage_type":
+      return "Damage Type";
+    default:
+      return "File";
+  }
 }

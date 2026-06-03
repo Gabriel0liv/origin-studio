@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FilePlus, FolderOpen, FolderPlus, Layers3, Search, Server, Sparkles, Tag, Wrench } from "lucide-react";
+import { FilePlus, FolderOpen, FolderPlus, HelpCircle, Import, Layers3, Search, Server, Sparkles, Tag, Wrench } from "lucide-react";
 import type { NewFileKind, TreeNode } from "../types";
 import { FileTree } from "./FileTree";
 
@@ -11,7 +11,9 @@ const quickActions: Array<{ kind: NewFileKind; label: string; icon: ReactNode }>
   { kind: "tag", label: "New Tag", icon: <Tag size={14} /> },
 ];
 
-export function ProjectSidebar({ serverStatus, projectRoot, projectInput, projectError, recentProjects, groupedFiles, selectedPath, filter, onProjectInputChange, onOpenProject, onCreateFolder, onQuickCreate, onFilterChange, onSelectFile }: { serverStatus: string; projectRoot?: string | undefined; projectInput: string; projectError?: string | undefined; recentProjects: string[]; groupedFiles: Record<string, TreeNode[]>; selectedPath?: string | undefined; filter: string; onProjectInputChange: (value: string) => void; onOpenProject: (path?: string) => void; onCreateFolder: () => void; onQuickCreate: (kind: NewFileKind) => void; onFilterChange: (value: string) => void; onSelectFile: (path: string) => void }) {
+export function ProjectSidebar({ serverStatus, projectRoot, projectInput, projectError, recentProjects, groupedFiles, selectedPath, filter, onProjectInputChange, onOpenProject, onImportProject, onOpenHelp, onCreateFolder, onQuickCreate, onFilterChange, onSelectFile }: { serverStatus: string; projectRoot?: string | undefined; projectInput: string; projectError?: string | undefined; recentProjects: string[]; groupedFiles: Record<string, TreeNode[]>; selectedPath?: string | undefined; filter: string; onProjectInputChange: (value: string) => void; onOpenProject: (path?: string) => void; onImportProject: () => void; onOpenHelp: () => void; onCreateFolder: () => void; onQuickCreate: (kind: NewFileKind) => void; onFilterChange: (value: string) => void; onSelectFile: (path: string) => void }) {
+  const projectName = projectRoot ? projectRoot.replace(/\\/g, "/").split("/").pop() ?? projectRoot : undefined;
+
   return (
     <aside className="sidebar">
       <div className="brand-card">
@@ -50,31 +52,44 @@ export function ProjectSidebar({ serverStatus, projectRoot, projectInput, projec
         </section>
       ) : (
         <>
-          <section className="project-panel">
-            <div className="section-head">
-              <h2>Project Explorer</h2>
-              <button className="ghost-button" onClick={() => onOpenProject(projectRoot)}>
-                Reopen
-              </button>
+        <section className="project-panel">
+            <div className="section-head compact">
+              <div className="project-summary">
+                <strong title={projectRoot}>{projectName ?? "Open project"}</strong>
+                <small>{serverStatus === "online" ? "Server online" : "Server offline"}</small>
+              </div>
             </div>
 
-            <div className="quick-actions">
-              <button className="quick-action quick-action-icon" onClick={onCreateFolder} aria-label="New folder" title="New folder">
-                <FolderPlus size={14} />
-              </button>
-
+            <div className="toolbar-actions">
               <details className="quick-action-menu">
-                <summary className="quick-action quick-action-icon" aria-label="New file" title="New file">
+                <summary className="ghost-button compact toolbar-button" aria-label="New file" title="New file">
                   <FilePlus size={14} />
+                  <span>New File</span>
                 </summary>
                 <div className="quick-action-popover" role="menu" aria-label="New file types">
                   {quickActions.map((action) => (
-                    <button key={action.kind} className="quick-action quick-action-icon" onClick={() => onQuickCreate(action.kind)} aria-label={action.label} title={action.label}>
+                    <button key={action.kind} className="quick-action quick-action-popover-item" onClick={() => onQuickCreate(action.kind)}>
                       {action.icon}
+                      <span>{action.label}</span>
                     </button>
                   ))}
                 </div>
               </details>
+
+              <button className="ghost-button compact toolbar-button" onClick={onCreateFolder} title="New folder">
+                <FolderPlus size={14} />
+                <span>New Folder</span>
+              </button>
+
+              <button className="ghost-button compact toolbar-button" onClick={onImportProject} title="Import another project">
+                <Import size={14} />
+                <span>Import</span>
+              </button>
+
+              <button className="ghost-button compact toolbar-button" onClick={onOpenHelp} title="Open help">
+                <HelpCircle size={14} />
+                <span>Help</span>
+              </button>
             </div>
 
             <label className="search-box">
@@ -86,7 +101,7 @@ export function ProjectSidebar({ serverStatus, projectRoot, projectInput, projec
           </section>
 
           <section className="footer-project">
-            <small>Open project</small>
+            <small>Project root</small>
             <strong title={projectRoot}>{projectRoot}</strong>
           </section>
         </>

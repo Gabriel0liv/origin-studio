@@ -1,6 +1,6 @@
 export function FileHeader({
   kindLabel,
-  fileName,
+  documentId,
   directory,
   absolutePath,
   dirty,
@@ -10,11 +10,10 @@ export function FileHeader({
   onOpenJson,
   onOpenProblems,
   onOpenReferences,
-  onOpenInspector,
-  onOpenSchema
+  onOpenHelp
 }: {
   kindLabel: string;
-  fileName?: string | undefined;
+  documentId?: string | undefined;
   directory?: string | undefined;
   absolutePath?: string | undefined;
   dirty: boolean;
@@ -24,15 +23,14 @@ export function FileHeader({
   onOpenJson: () => void;
   onOpenProblems: () => void;
   onOpenReferences: () => void;
-  onOpenInspector: () => void;
-  onOpenSchema: () => void;
+  onOpenHelp: () => void;
 }) {
   return (
     <header className="file-header">
       <div className="file-header-copy" title={absolutePath}>
         <div className="file-header-mainline">
           <small>{kindLabel}</small>
-          <h2>{fileName ?? "Untitled file"}</h2>
+          <h2>{documentId ?? "Untitled file"}</h2>
           <span className={`status-pill ${dirty ? "dirty" : "saved"}`}>{dirty ? "Modified" : "Saved"}</span>
         </div>
         <p>{directory ?? "No relative path available"}</p>
@@ -41,17 +39,14 @@ export function FileHeader({
         <button className="ghost-button" onClick={onReload}>
           Reload
         </button>
-        <button className="ghost-button" onClick={onOpenInspector}>
-          Inspector
-        </button>
         <button className="ghost-button" onClick={onOpenProblems}>
           Problems {problemCount > 0 ? `(${problemCount})` : ""}
         </button>
         <button className="ghost-button" onClick={onOpenReferences}>
           References
         </button>
-        <button className="ghost-button" onClick={onOpenSchema}>
-          Schema
+        <button className="ghost-button" onClick={onOpenHelp}>
+          Help
         </button>
         <button className="ghost-button" onClick={onOpenJson}>
           JSON

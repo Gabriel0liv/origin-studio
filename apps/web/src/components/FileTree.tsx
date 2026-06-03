@@ -20,7 +20,7 @@ export function FileTree({
   onSelect: (path: string) => void;
 }) {
   return (
-    <div className="explorer-list">
+    <div className="file-tree explorer-list">
       {sectionOrder.map((kind) => {
         const nodes = groupedFiles[kind] ?? [];
         const tree = buildExplorerTree(nodes);

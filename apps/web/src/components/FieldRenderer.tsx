@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Plus } from "lucide-react";
+import { Copy, ExternalLink, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Diagnostic, LookupEntry, SchemaField, SchemaType } from "../types";
 import {
@@ -178,6 +178,17 @@ function ArrayFieldRenderer(props: RendererProps) {
       <div className="typed-node-fields">
         {items.map((item, index) => (
           <div key={`${props.field.name}-${index}`} className="array-item-row">
+            <div className="array-item-toolbar">
+              <span>Item {index + 1}</span>
+              <button
+                type="button"
+                className="ghost-button compact"
+                onClick={() => props.onValueChange(props.path, items.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                <Trash2 size={14} />
+                Remove
+              </button>
+            </div>
             <FieldRenderer
               {...props}
               label={`${props.label} ${index + 1}`}
