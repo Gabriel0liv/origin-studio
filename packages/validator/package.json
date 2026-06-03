@@ -1,0 +1,24 @@
+{
+  "name": "@origin-studio/validator",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/validator/src/index.js",
+  "types": "dist/validator/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/validator/src/index.d.ts",
+      "default": "./dist/validator/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@origin-studio/core": "workspace:*",
+    "@origin-studio/origin-creator-adapter": "workspace:*",
+    "@origin-studio/project-indexer": "workspace:*",
+    "ajv": "^8.17.1"
+  }
+}

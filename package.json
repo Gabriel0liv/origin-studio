@@ -1,0 +1,24 @@
+{
+  "name": "origin-studio",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --parallel --filter @origin-studio/server --filter @origin-studio/web dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "validate": "pnpm --filter @origin-studio/cli origin-studio validate"
+  },
+  "devDependencies": {
+    "@origin-studio/core": "workspace:*",
+    "@origin-studio/origin-creator-adapter": "workspace:*",
+    "@origin-studio/profiles": "workspace:*",
+    "@origin-studio/project-indexer": "workspace:*",
+    "@origin-studio/validator": "workspace:*",
+    "@types/node": "^24.0.3",
+    "concurrently": "^9.2.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

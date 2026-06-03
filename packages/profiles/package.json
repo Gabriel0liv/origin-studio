@@ -1,0 +1,18 @@
+{
+  "name": "@origin-studio/profiles",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/profiles/src/index.js",
+  "types": "dist/profiles/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/profiles/src/index.d.ts",
+      "default": "./dist/profiles/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@origin-studio/core": ["packages/core/src/index.ts"],
+      "@origin-studio/origin-creator-adapter": ["packages/origin-creator-adapter/src/index.ts"],
+      "@origin-studio/project-indexer": ["packages/project-indexer/src/index.ts"],
+      "@origin-studio/validator": ["packages/validator/src/index.ts"],
+      "@origin-studio/profiles": ["packages/profiles/src/index.ts"]
+    }
+  }
+} 

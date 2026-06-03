@@ -1,0 +1,22 @@
+{
+  "name": "@origin-studio/origin-creator-adapter",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/origin-creator-adapter/src/index.js",
+  "types": "dist/origin-creator-adapter/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/origin-creator-adapter/src/index.d.ts",
+      "default": "./dist/origin-creator-adapter/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@origin-studio/core": "workspace:*",
+    "yaml": "^2.8.0"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@origin-studio/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/websocket": "^11.2.0",
+    "@origin-studio/core": "workspace:*",
+    "@origin-studio/origin-creator-adapter": "workspace:*",
+    "@origin-studio/profiles": "workspace:*",
+    "@origin-studio/project-indexer": "workspace:*",
+    "@origin-studio/validator": "workspace:*",
+    "ajv": "^8.17.1",
+    "chokidar": "^4.0.3",
+    "fastify": "^5.4.0",
+    "fastify-plugin": "^5.0.1",
+    "ws": "^8.18.3",
+    "zod": "^4.0.5"
+  }
+}
