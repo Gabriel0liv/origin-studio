@@ -8,40 +8,10 @@ const quickActions: Array<{ kind: NewFileKind; label: string; icon: ReactNode }>
   { kind: "origin", label: "New Origin", icon: <FolderOpen size={14} /> },
   { kind: "origin_layer", label: "New Origin Layer", icon: <Layers3 size={14} /> },
   { kind: "item_modifier", label: "New Item Modifier", icon: <Wrench size={14} /> },
-  { kind: "tag", label: "New Tag", icon: <Tag size={14} /> }
+  { kind: "tag", label: "New Tag", icon: <Tag size={14} /> },
 ];
 
-export function ProjectSidebar({
-  serverStatus,
-  projectRoot,
-  projectInput,
-  projectError,
-  recentProjects,
-  groupedFiles,
-  selectedPath,
-  filter,
-  onProjectInputChange,
-  onOpenProject,
-  onCreateFolder,
-  onQuickCreate,
-  onFilterChange,
-  onSelectFile
-}: {
-  serverStatus: string;
-  projectRoot?: string | undefined;
-  projectInput: string;
-  projectError?: string | undefined;
-  recentProjects: string[];
-  groupedFiles: Record<string, TreeNode[]>;
-  selectedPath?: string | undefined;
-  filter: string;
-  onProjectInputChange: (value: string) => void;
-  onOpenProject: (path?: string) => void;
-  onCreateFolder: () => void;
-  onQuickCreate: (kind: NewFileKind) => void;
-  onFilterChange: (value: string) => void;
-  onSelectFile: (path: string) => void;
-}) {
+export function ProjectSidebar({ serverStatus, projectRoot, projectInput, projectError, recentProjects, groupedFiles, selectedPath, filter, onProjectInputChange, onOpenProject, onCreateFolder, onQuickCreate, onFilterChange, onSelectFile }: { serverStatus: string; projectRoot?: string | undefined; projectInput: string; projectError?: string | undefined; recentProjects: string[]; groupedFiles: Record<string, TreeNode[]>; selectedPath?: string | undefined; filter: string; onProjectInputChange: (value: string) => void; onOpenProject: (path?: string) => void; onCreateFolder: () => void; onQuickCreate: (kind: NewFileKind) => void; onFilterChange: (value: string) => void; onSelectFile: (path: string) => void }) {
   return (
     <aside className="sidebar">
       <div className="brand-card">
@@ -63,11 +33,7 @@ export function ProjectSidebar({
       {!projectRoot ? (
         <section className="start-panel">
           <h2>Open project</h2>
-          <input
-            value={projectInput}
-            onChange={(event) => onProjectInputChange(event.target.value)}
-            placeholder="C:/Users/User/Desktop/MyOriginsDatapack"
-          />
+          <input value={projectInput} onChange={(event) => onProjectInputChange(event.target.value)} placeholder="C:/Users/User/Desktop/MyOriginsDatapack" />
           {projectError ? <p className="error-text">{projectError}</p> : null}
           <button className="primary-button" disabled={!projectInput.trim()} onClick={() => onOpenProject()}>
             <FolderOpen size={16} />
@@ -103,13 +69,7 @@ export function ProjectSidebar({
                 </summary>
                 <div className="quick-action-popover" role="menu" aria-label="New file types">
                   {quickActions.map((action) => (
-                    <button
-                      key={action.kind}
-                      className="quick-action quick-action-icon"
-                      onClick={() => onQuickCreate(action.kind)}
-                      aria-label={action.label}
-                      title={action.label}
-                    >
+                    <button key={action.kind} className="quick-action quick-action-icon" onClick={() => onQuickCreate(action.kind)} aria-label={action.label} title={action.label}>
                       {action.icon}
                     </button>
                   ))}

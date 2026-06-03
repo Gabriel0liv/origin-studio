@@ -6,23 +6,8 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import chokidar, { type FSWatcher } from "chokidar";
 import { z } from "zod";
-import {
-  applyJsonPatch,
-  detectFileKind,
-  ensureWithinRoot,
-  formatJsonDocument,
-  readJsonFile,
-  relativeUnixPath
-} from "@origin-studio/core";
-import {
-  findWorkspaceRoot,
-  getSchemaKinds,
-  getTypeDefinition,
-  getTypesForKind,
-  loadSchemaRegistry,
-  resolveSchemaDir,
-  type SchemaRegistry
-} from "@origin-studio/origin-creator-adapter";
+import { applyJsonPatch, detectFileKind, ensureWithinRoot, formatJsonDocument, readJsonFile, relativeUnixPath } from "@origin-studio/core";
+import { findWorkspaceRoot, getSchemaKinds, getTypeDefinition, getTypesForKind, loadSchemaRegistry, resolveSchemaDir, type SchemaRegistry } from "@origin-studio/origin-creator-adapter";
 import { listProfiles, loadProfile, type OriginStudioProfileConfig } from "@origin-studio/profiles";
 import { getReferencesTo, indexProject, type ProjectIndex } from "@origin-studio/project-indexer";
 import { validateFile, validateProject } from "@origin-studio/validator";
@@ -44,8 +29,8 @@ const port = 8787;
 
 const app = Fastify({
   logger: {
-    level: process.env.ORIGIN_STUDIO_LOG_LEVEL ?? "warn"
-  }
+    level: process.env.ORIGIN_STUDIO_LOG_LEVEL ?? "warn",
+  },
 });
 await app.register(cors, { origin: [/^http:\/\/127\.0\.0\.1:\d+$/, /^http:\/\/localhost:\d+$/] });
 await app.register(websocket);
@@ -64,7 +49,7 @@ app.setErrorHandler((error, request, reply) => {
       ok: false,
       code: "validation-error",
       message: "Invalid request.",
-      issues: error.issues
+      issues: error.issues,
     });
   }
 
@@ -72,14 +57,14 @@ app.setErrorHandler((error, request, reply) => {
   return reply.code(500).send({
     ok: false,
     code: "internal-error",
-    message: error instanceof Error ? error.message : "Unknown error"
+    message: error instanceof Error ? error.message : "Unknown error",
   });
 });
 
 const state: ServerState = {
   diagnostics: [],
   profile: await loadProfile(),
-  schemaRegistry: await loadSchemaRegistry(schemaDir)
+  schemaRegistry: await loadSchemaRegistry(schemaDir),
 };
 
 type LiveSocket = {
@@ -94,12 +79,12 @@ app.get("/api/health", async () => ({
   host,
   port,
   hasProject: Boolean(state.projectRoot),
-  schemaKinds: getSchemaKinds(state.schemaRegistry)
+  schemaKinds: getSchemaKinds(state.schemaRegistry),
 }));
 
 app.get("/api/project", async () => ({
   projectRoot: state.projectRoot,
-  profile: state.profile.profile
+  profile: state.profile.profile,
 }));
 
 app.post("/api/project/open", async (request, reply) => {
@@ -110,7 +95,7 @@ app.post("/api/project/open", async (request, reply) => {
       ok: false,
       code: "invalid-project-path",
       message: "Project path is required.",
-      issues: parsed.error.issues
+      issues: parsed.error.issues,
     });
   }
 
@@ -119,7 +104,7 @@ app.post("/api/project/open", async (request, reply) => {
   return {
     ok: true,
     projectRoot,
-    summary: summarizeIndex(state.projectIndex)
+    summary: summarizeIndex(state.projectIndex),
   };
 });
 
@@ -143,14 +128,14 @@ app.get("/api/files/content", async (request) => {
       filePath,
       raw,
       errors: [],
-      kind
+      kind,
     };
   }
 
   return {
     filePath,
     kind,
-    ...(await readJsonFile(filePath))
+    ...(await readJsonFile(filePath)),
   };
 });
 
@@ -201,7 +186,7 @@ app.get("/api/schemas/types", async (request) => {
   if (!query.kind) {
     return getSchemaKinds(state.schemaRegistry).map((kind) => ({
       kind,
-      count: getTypesForKind(state.schemaRegistry, kind).length
+      count: getTypesForKind(state.schemaRegistry, kind).length,
     }));
   }
   return getTypesForKind(state.schemaRegistry, query.kind);
@@ -230,7 +215,7 @@ app.get("/api/references/tag", async (request) => {
 app.get("/api/profiles", async () => ({
   available: listProfiles(),
   active: state.profile.profile,
-  config: state.profile
+  config: state.profile,
 }));
 
 app.post("/api/profiles/select", async (request) => {
@@ -260,14 +245,7 @@ async function openProject(projectRoot: string): Promise<void> {
   await state.watcher?.close();
   state.watcher = chokidar.watch(projectRoot, {
     ignoreInitial: true,
-    ignored: [
-      "**/node_modules/**",
-      "**/.git/**",
-      "**/dist/**",
-      "**/.vite/**",
-      "**/origin-creator-schemas/.git/**",
-      "**/schemas/origin-creator-schemas/.git/**"
-    ]
+    ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/.vite/**", "**/origin-creator-schemas/.git/**", "**/schemas/origin-creator-schemas/.git/**"],
   });
 
   state.watcher.on("add", (filePath) => void onExternalChange(filePath));
@@ -301,7 +279,7 @@ function summarizeIndex(index?: ProjectIndex): Record<string, unknown> {
   return {
     projectRoot: index.projectRoot,
     namespaces: index.namespaces,
-    counts
+    counts,
   };
 }
 
@@ -318,7 +296,7 @@ function requireIndex(): ProjectIndex {
 function requireValidationContext() {
   return {
     index: requireIndex(),
-    registry: state.schemaRegistry
+    registry: state.schemaRegistry,
   };
 }
 
@@ -345,16 +323,16 @@ async function buildFileTree(root: string, current = root): Promise<Array<Record
               path: fullPath,
               relativePath,
               type: "directory",
-              children: await buildFileTree(root, fullPath)
+              children: await buildFileTree(root, fullPath),
             }
           : {
               name: entry.name,
               path: fullPath,
               relativePath,
               type: "file",
-              kind: detectFileKind(fullPath)
+              kind: detectFileKind(fullPath),
             };
-      })
+      }),
   );
 }
 

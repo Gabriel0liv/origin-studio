@@ -17,10 +17,7 @@
   --error: #ff92a0;
   --info: #8cb7ff;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(64, 202, 167, 0.14), transparent 30%),
-    radial-gradient(circle at top right, rgba(140, 183, 255, 0.14), transparent 24%),
-    linear-gradient(180deg, #071018 0%, #09121b 100%);
+  background: radial-gradient(circle at top left, rgba(64, 202, 167, 0.14), transparent 30%), radial-gradient(circle at top right, rgba(140, 183, 255, 0.14), transparent 24%), linear-gradient(180deg, #071018 0%, #09121b 100%);
   color: var(--text);
 }
 

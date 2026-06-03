@@ -16,59 +16,10 @@ import { ProjectSidebar } from "./components/ProjectSidebar";
 import { ReferencesPanel } from "./components/ReferencesPanel";
 import { SidePanelDrawer } from "./components/SidePanelDrawer";
 import { TagBuilder } from "./components/TagBuilder";
-import type {
-  Diagnostic,
-  FileContentResponse,
-  FileReference,
-  NewFileDraft,
-  NewFileKind,
-  OpenDocumentState,
-  SchemaField,
-  SchemaType,
-  TreeNode
-} from "./types";
-import {
-  basename,
-  buildDefaultDraft,
-  buildDefinitionsCreated,
-  buildLookup,
-  buildNewFileContent,
-  buildNewFilePath,
-  buildReferenceItem,
-  bySeverity,
-  collapseDiagnostics,
-  collectReferenceGroups,
-  copyToClipboard,
-  deriveIdFromRelativePath,
-  explainMap,
-  fetchJson,
-  flattenFiles,
-  formatJsonDocument,
-  getValueAtPath,
-  groupNodes,
-  inferNamespaces,
-  inferSchemaKindForFile,
-  isObject,
-  labelForKind,
-  loadRecentProjects,
-  rememberProject,
-  setValueAtPath,
-  toProjectRelative
-} from "./utils";
+import type { Diagnostic, FileContentResponse, FileReference, NewFileDraft, NewFileKind, OpenDocumentState, SchemaField, SchemaType, TreeNode } from "./types";
+import { basename, buildDefaultDraft, buildDefinitionsCreated, buildLookup, buildNewFileContent, buildNewFilePath, buildReferenceItem, bySeverity, collapseDiagnostics, collectReferenceGroups, copyToClipboard, deriveIdFromRelativePath, explainMap, fetchJson, flattenFiles, formatJsonDocument, getValueAtPath, groupNodes, inferNamespaces, inferSchemaKindForFile, isObject, labelForKind, loadRecentProjects, rememberProject, setValueAtPath, toProjectRelative } from "./utils";
 
-const schemaKinds = [
-  "power",
-  "origin",
-  "origin_layer",
-  "item_modifier",
-  "tag",
-  "condition",
-  "entity_action",
-  "bientity_action",
-  "bientity_condition",
-  "item_condition",
-  "damage_condition"
-];
+const schemaKinds = ["power", "origin", "origin_layer", "item_modifier", "tag", "condition", "entity_action", "bientity_action", "bientity_condition", "item_condition", "damage_condition"];
 
 export function App() {
   const socketRef = useRef<WebSocket | null>(null);
@@ -96,21 +47,9 @@ export function App() {
   const fileLookup = useMemo(() => buildLookup(allFiles), [allFiles]);
   const namespaces = useMemo(() => inferNamespaces(projectRoot, tree), [projectRoot, tree]);
 
-  const currentFileProblems = useMemo(
-    () =>
-      collapseDiagnostics(
-        diagnostics.filter((diagnostic) => diagnostic.filePath === documentState?.filePath)
-      ),
-    [diagnostics, documentState?.filePath]
-  );
+  const currentFileProblems = useMemo(() => collapseDiagnostics(diagnostics.filter((diagnostic) => diagnostic.filePath === documentState?.filePath)), [diagnostics, documentState?.filePath]);
 
-  const projectProblems = useMemo(
-    () =>
-      collapseDiagnostics(
-        diagnostics.filter((diagnostic) => diagnostic.filePath !== documentState?.filePath)
-      ),
-    [diagnostics, documentState?.filePath]
-  );
+  const projectProblems = useMemo(() => collapseDiagnostics(diagnostics.filter((diagnostic) => diagnostic.filePath !== documentState?.filePath)), [diagnostics, documentState?.filePath]);
 
   const referenceGroups = useMemo(() => {
     const groups = collectReferenceGroups(documentState?.parsed);
@@ -118,29 +57,15 @@ export function App() {
     return {
       powers: groups.power.map((id) => buildReferenceItem("power", id, fileLookup, currentFileProblems)),
       tags: groups.tag.map((id) => buildReferenceItem("tag", id, fileLookup, currentFileProblems)),
-      itemModifiers: groups.item_modifier.map((id) =>
-        buildReferenceItem("item_modifier", id, fileLookup, currentFileProblems)
-      ),
+      itemModifiers: groups.item_modifier.map((id) => buildReferenceItem("item_modifier", id, fileLookup, currentFileProblems)),
       resources: groups.resource.map((id) => buildReferenceItem("resource", id, fileLookup, currentFileProblems)),
-      functions: groups.function.map((id) => buildReferenceItem("function", id, fileLookup, currentFileProblems))
+      functions: groups.function.map((id) => buildReferenceItem("function", id, fileLookup, currentFileProblems)),
     };
   }, [documentState?.parsed, fileLookup, currentFileProblems]);
 
-  const definitionsCreated = useMemo(
-    () =>
-      buildDefinitionsCreated(
-        documentState?.parsed,
-        documentState?.relativePath,
-        documentState?.kind,
-        documentState?.filePath
-      ),
-    [documentState]
-  );
+  const definitionsCreated = useMemo(() => buildDefinitionsCreated(documentState?.parsed, documentState?.relativePath, documentState?.kind, documentState?.filePath), [documentState]);
 
-  const selectedFieldValue = useMemo(
-    () => (selectedField && documentState?.parsed ? getValueAtPath(documentState.parsed, selectedField.path) : undefined),
-    [selectedField, documentState?.parsed]
-  );
+  const selectedFieldValue = useMemo(() => (selectedField && documentState?.parsed ? getValueAtPath(documentState.parsed, selectedField.path) : undefined), [selectedField, documentState?.parsed]);
 
   const drawerTitle = useMemo(() => {
     switch (drawerMode) {
@@ -158,19 +83,13 @@ export function App() {
   }, [drawerMode]);
 
   const loadSchemaOptions = useCallback(async () => {
-    const results = await Promise.all(
-      schemaKinds.map(async (kind) => [kind, await fetchJson<SchemaType[]>(apiBase, `/api/schemas/types?kind=${encodeURIComponent(kind)}`).catch(() => [])] as const)
-    );
+    const results = await Promise.all(schemaKinds.map(async (kind) => [kind, await fetchJson<SchemaType[]>(apiBase, `/api/schemas/types?kind=${encodeURIComponent(kind)}`).catch(() => [])] as const));
 
     setSchemaOptionsByKind(Object.fromEntries(results));
   }, []);
 
   const loadProjectState = useCallback(async () => {
-    const [projectResponse, treeResponse, problemsResponse] = await Promise.all([
-      fetchJson<{ projectRoot?: string }>(apiBase, "/api/project"),
-      fetchJson<TreeNode[]>(apiBase, "/api/files/tree").catch(() => []),
-      fetchJson<Diagnostic[]>(apiBase, "/api/problems").catch(() => [])
-    ]);
+    const [projectResponse, treeResponse, problemsResponse] = await Promise.all([fetchJson<{ projectRoot?: string }>(apiBase, "/api/project"), fetchJson<TreeNode[]>(apiBase, "/api/files/tree").catch(() => []), fetchJson<Diagnostic[]>(apiBase, "/api/problems").catch(() => [])]);
 
     setProjectRoot(projectResponse.projectRoot);
     setProjectInput(projectResponse.projectRoot ?? "");
@@ -178,43 +97,31 @@ export function App() {
     setDiagnostics(problemsResponse);
   }, []);
 
-  const loadDocumentReferences = useCallback(
-    async (fileKind: string, id?: string): Promise<FileReference[]> => {
-      if (!id) return [];
+  const loadDocumentReferences = useCallback(async (fileKind: string, id?: string): Promise<FileReference[]> => {
+    if (!id) return [];
 
-      if (fileKind === "power") {
-        return fetchJson<FileReference[]>(apiBase, `/api/references/power?id=${encodeURIComponent(id)}`).catch(() => []);
-      }
+    if (fileKind === "power") {
+      return fetchJson<FileReference[]>(apiBase, `/api/references/power?id=${encodeURIComponent(id)}`).catch(() => []);
+    }
 
-      if (fileKind === "item_modifier") {
-        return fetchJson<FileReference[]>(apiBase, `/api/references/item_modifier?id=${encodeURIComponent(id)}`).catch(() => []);
-      }
+    if (fileKind === "item_modifier") {
+      return fetchJson<FileReference[]>(apiBase, `/api/references/item_modifier?id=${encodeURIComponent(id)}`).catch(() => []);
+    }
 
-      if (fileKind === "tag") {
-        return fetchJson<FileReference[]>(apiBase, `/api/references/tag?id=${encodeURIComponent(id)}`).catch(() => []);
-      }
+    if (fileKind === "tag") {
+      return fetchJson<FileReference[]>(apiBase, `/api/references/tag?id=${encodeURIComponent(id)}`).catch(() => []);
+    }
 
-      return [];
-    },
-    []
-  );
+    return [];
+  }, []);
 
   const loadFile = useCallback(
     async (filePath: string) => {
-      const result = await fetchJson<FileContentResponse>(
-        apiBase,
-        `/api/files/content?path=${encodeURIComponent(filePath)}`
-      );
+      const result = await fetchJson<FileContentResponse>(apiBase, `/api/files/content?path=${encodeURIComponent(filePath)}`);
       const relativePath = projectRoot ? toProjectRelative(projectRoot, filePath) : result.filePath;
       const schemaKind = inferSchemaKindForFile(result.kind);
       const type = isObject(result.data) && typeof result.data.type === "string" ? result.data.type : undefined;
-      const schema =
-        schemaKind && type
-          ? await fetchJson<SchemaType | null>(
-              apiBase,
-              `/api/schemas/type?kind=${encodeURIComponent(schemaKind)}&type=${encodeURIComponent(type)}`
-            ).catch(() => null)
-          : null;
+      const schema = schemaKind && type ? await fetchJson<SchemaType | null>(apiBase, `/api/schemas/type?kind=${encodeURIComponent(schemaKind)}&type=${encodeURIComponent(type)}`).catch(() => null) : null;
       const ownId = deriveIdFromRelativePath(relativePath, result.kind);
       const incomingReferences = await loadDocumentReferences(result.kind, ownId);
 
@@ -227,11 +134,11 @@ export function App() {
         dirty: false,
         diagnostics: diagnostics.filter((diagnostic) => diagnostic.filePath === filePath),
         schema,
-        incomingReferences
+        incomingReferences,
       });
       setSelectedField(null);
     },
-    [diagnostics, loadDocumentReferences, projectRoot]
+    [diagnostics, loadDocumentReferences, projectRoot],
   );
 
   useEffect(() => {
@@ -305,7 +212,7 @@ export function App() {
       setProjectError(undefined);
       const result = await fetchJson<{ projectRoot: string }>(apiBase, "/api/project/open", {
         method: "POST",
-        body: JSON.stringify({ path: target })
+        body: JSON.stringify({ path: target }),
       });
       setProjectRoot(result.projectRoot);
       setProjectInput(result.projectRoot);
@@ -320,7 +227,7 @@ export function App() {
     if (!documentState) return;
     await fetchJson(apiBase, "/api/files/content", {
       method: "PUT",
-      body: JSON.stringify({ path: documentState.filePath, content: documentState.raw })
+      body: JSON.stringify({ path: documentState.filePath, content: documentState.raw }),
     });
     await loadFile(documentState.filePath);
   }
@@ -348,7 +255,7 @@ export function App() {
         ...current,
         raw,
         parsed,
-        dirty: true
+        dirty: true,
       };
     });
   }
@@ -362,7 +269,7 @@ export function App() {
         ...current,
         parsed: next,
         raw: formatJsonDocument(JSON.stringify(next, null, 2)),
-        dirty: true
+        dirty: true,
       };
     });
   }
@@ -380,7 +287,7 @@ export function App() {
 
     await fetchJson(apiBase, "/api/files/folder", {
       method: "POST",
-      body: JSON.stringify({ path: path.trim() })
+      body: JSON.stringify({ path: path.trim() }),
     });
 
     await loadProjectState();
@@ -393,7 +300,7 @@ export function App() {
 
     await fetchJson(apiBase, "/api/files/content", {
       method: "PUT",
-      body: JSON.stringify({ path: targetPath, content })
+      body: JSON.stringify({ path: targetPath, content }),
     });
 
     setWizardOpen(false);
@@ -417,7 +324,7 @@ export function App() {
         startLineNumber: range.startLine,
         startColumn: range.startColumn,
         endLineNumber: range.endLine,
-        endColumn: range.endColumn
+        endColumn: range.endColumn,
       });
       editor.focus();
     });
@@ -458,10 +365,7 @@ export function App() {
           <section className="hero-panel">
             <div className="hero-copy">
               <h2>Build datapacks visually, keep JSON as an advanced mode, and edit the real files on disk.</h2>
-              <p>
-                Origin Studio now starts from a builder-first workflow: choose a type, fill structured fields,
-                nest actions and conditions as blocks, and keep validation close to the field that needs attention.
-              </p>
+              <p>Origin Studio now starts from a builder-first workflow: choose a type, fill structured fields, nest actions and conditions as blocks, and keep validation close to the field that needs attention.</p>
             </div>
             <div className="hero-grid">
               <div className="hero-card">
@@ -481,28 +385,10 @@ export function App() {
     );
   }
 
-  const header = (
-    <FileHeader
-      kindLabel={labelForKind(documentState?.kind)}
-      fileName={documentState ? basename(documentState.relativePath) : undefined}
-      directory={documentState ? toDirectory(documentState.relativePath) : undefined}
-      absolutePath={documentState?.filePath}
-      dirty={Boolean(documentState?.dirty)}
-      problemCount={currentFileProblems.length}
-      onSave={() => void saveFile()}
-      onReload={() => void reloadFile()}
-      onOpenJson={() => setIsJsonOpen(true)}
-      onOpenProblems={() => setDrawerMode("problems")}
-      onOpenReferences={() => setDrawerMode("references")}
-      onOpenInspector={() => setDrawerMode("inspector")}
-      onOpenSchema={() => setDrawerMode("schema")}
-    />
-  );
+  const header = <FileHeader kindLabel={labelForKind(documentState?.kind)} fileName={documentState ? basename(documentState.relativePath) : undefined} directory={documentState ? toDirectory(documentState.relativePath) : undefined} absolutePath={documentState?.filePath} dirty={Boolean(documentState?.dirty)} problemCount={currentFileProblems.length} onSave={() => void saveFile()} onReload={() => void reloadFile()} onOpenJson={() => setIsJsonOpen(true)} onOpenProblems={() => setDrawerMode("problems")} onOpenReferences={() => setDrawerMode("references")} onOpenInspector={() => setDrawerMode("inspector")} onOpenSchema={() => setDrawerMode("schema")} />;
 
   const builder = documentState ? (
-    renderBuilder(documentState, schemaOptionsByKind, fileLookup, currentFileProblems, handleVisualValueChange, setSelectedField, (path) =>
-      void loadFile(path)
-    )
+    renderBuilder(documentState, schemaOptionsByKind, fileLookup, currentFileProblems, handleVisualValueChange, setSelectedField, (path) => void loadFile(path))
   ) : (
     <section className="empty-editor">
       <h2>Select a file or create a new one</h2>
@@ -519,15 +405,7 @@ export function App() {
       <SidePanelDrawer
         open={drawerMode !== null}
         title={drawerTitle}
-        description={
-          drawerMode === "inspector"
-            ? "Documentation and current value for the selected field."
-            : drawerMode === "problems"
-              ? "Current file first, then the rest of the project."
-              : drawerMode === "references"
-                ? "Open, copy, and inspect related IDs without leaving the builder."
-                : "Schema registry data for the currently selected document type."
-        }
+        description={drawerMode === "inspector" ? "Documentation and current value for the selected field." : drawerMode === "problems" ? "Current file first, then the rest of the project." : drawerMode === "references" ? "Open, copy, and inspect related IDs without leaving the builder." : "Schema registry data for the currently selected document type."}
         onOpenChange={(open) => {
           if (!open) setDrawerMode(null);
         }}
@@ -547,34 +425,11 @@ export function App() {
           </section>
         ) : null}
 
-        {drawerMode === "problems" ? (
-          <ProblemsPanel
-            currentFileProblems={currentFileProblems.filter(bySeverity("all"))}
-            projectProblems={projectProblems.filter(bySeverity("all"))}
-            onExplain={(id) => window.alert(explainMap[id] ?? "No extended explanation is registered in the MVP yet.")}
-            onApplyQuickFix={applyQuickFix}
-            onGoToProblem={goToProblem}
-          />
-        ) : null}
+        {drawerMode === "problems" ? <ProblemsPanel currentFileProblems={currentFileProblems.filter(bySeverity("all"))} projectProblems={projectProblems.filter(bySeverity("all"))} onExplain={(id) => window.alert(explainMap[id] ?? "No extended explanation is registered in the MVP yet.")} onApplyQuickFix={applyQuickFix} onGoToProblem={goToProblem} /> : null}
 
-        {drawerMode === "references" ? (
-          <ReferencesPanel
-            referenceGroups={referenceGroups}
-            definitionsCreated={definitionsCreated}
-            incomingReferences={documentState?.incomingReferences ?? []}
-            onOpenFile={(path) => void loadFile(path)}
-          />
-        ) : null}
+        {drawerMode === "references" ? <ReferencesPanel referenceGroups={referenceGroups} definitionsCreated={definitionsCreated} incomingReferences={documentState?.incomingReferences ?? []} onOpenFile={(path) => void loadFile(path)} /> : null}
 
-        {drawerMode === "schema" ? (
-          <section className="inspector-card drawer-card">
-            {documentState?.schema ? (
-              <pre className="json-preview">{JSON.stringify(documentState.schema, null, 2)}</pre>
-            ) : (
-              <p className="empty-state compact">No schema was resolved for this file yet.</p>
-            )}
-          </section>
-        ) : null}
+        {drawerMode === "schema" ? <section className="inspector-card drawer-card">{documentState?.schema ? <pre className="json-preview">{JSON.stringify(documentState.schema, null, 2)}</pre> : <p className="empty-state compact">No schema was resolved for this file yet.</p>}</section> : null}
       </SidePanelDrawer>
 
       <JsonDrawer
@@ -588,28 +443,12 @@ export function App() {
         onChange={updateDocumentFromRaw}
       />
 
-      <NewFileWizard
-        open={wizardOpen}
-        draft={wizardDraft}
-        namespaces={namespaces}
-        powerTypes={schemaOptionsByKind.power ?? []}
-        onOpenChange={setWizardOpen}
-        onDraftChange={setWizardDraft}
-        onCreate={() => void createFileFromWizard()}
-      />
+      <NewFileWizard open={wizardOpen} draft={wizardDraft} namespaces={namespaces} powerTypes={schemaOptionsByKind.power ?? []} onOpenChange={setWizardOpen} onDraftChange={setWizardDraft} onCreate={() => void createFileFromWizard()} />
     </>
   );
 }
 
-function renderBuilder(
-  documentState: OpenDocumentState,
-  schemaOptionsByKind: Record<string, SchemaType[]>,
-  fileLookup: ReturnType<typeof buildLookup>,
-  currentFileProblems: Diagnostic[],
-  onValueChange: (path: Array<string | number>, value: unknown) => void,
-  onFieldFocus: (value: { path: Array<string | number>; field: SchemaField } | null) => void,
-  onOpenReference: (path: string) => void
-) {
+function renderBuilder(documentState: OpenDocumentState, schemaOptionsByKind: Record<string, SchemaType[]>, fileLookup: ReturnType<typeof buildLookup>, currentFileProblems: Diagnostic[], onValueChange: (path: Array<string | number>, value: unknown) => void, onFieldFocus: (value: { path: Array<string | number>; field: SchemaField } | null) => void, onOpenReference: (path: string) => void) {
   const commonProps = {
     value: documentState.parsed,
     schema: documentState.schema,
@@ -618,7 +457,7 @@ function renderBuilder(
     lookup: fileLookup,
     onValueChange,
     onOpenReference,
-    onFieldFocus: (path: Array<string | number>, field: SchemaField) => onFieldFocus({ path, field })
+    onFieldFocus: (path: Array<string | number>, field: SchemaField) => onFieldFocus({ path, field }),
   };
 
   switch (documentState.kind) {
