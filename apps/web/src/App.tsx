@@ -372,6 +372,20 @@ export function App() {
     setWizardOpen(true);
   }
 
+  async function createFolder() {
+    if (!projectRoot) return;
+
+    const path = window.prompt("Folder path relative to the project root:", "data/example/new_folder");
+    if (!path?.trim()) return;
+
+    await fetchJson(apiBase, "/api/files/folder", {
+      method: "POST",
+      body: JSON.stringify({ path: path.trim() })
+    });
+
+    await loadProjectState();
+  }
+
   async function createFileFromWizard() {
     if (!projectRoot) return;
     const targetPath = buildNewFilePath(projectRoot, wizardDraft);
@@ -430,6 +444,7 @@ export function App() {
         setProjectError(undefined);
       }}
       onOpenProject={(path) => void openProject(path)}
+      onCreateFolder={() => void createFolder()}
       onQuickCreate={openWizard}
       onFilterChange={setFilter}
       onSelectFile={(path) => void loadFile(path)}
@@ -491,7 +506,7 @@ export function App() {
   ) : (
     <section className="empty-editor">
       <h2>Select a file or create a new one</h2>
-      <p>Use the sidebar quick actions to create a power, origin, layer, item modifier, or tag.</p>
+      <p>Use the sidebar icons to create a folder or a new structured file.</p>
     </section>
   );
 

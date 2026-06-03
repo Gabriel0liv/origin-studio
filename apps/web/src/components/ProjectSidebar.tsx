@@ -1,13 +1,14 @@
-import { FolderOpen, Plus, Search, Server, Sparkles } from "lucide-react";
+import type { ReactNode } from "react";
+import { FilePlus, FolderOpen, FolderPlus, Layers3, Search, Server, Sparkles, Tag, Wrench } from "lucide-react";
 import type { NewFileKind, TreeNode } from "../types";
 import { FileTree } from "./FileTree";
 
-const quickActions: Array<{ kind: NewFileKind; label: string }> = [
-  { kind: "power", label: "New Power" },
-  { kind: "origin", label: "New Origin" },
-  { kind: "origin_layer", label: "New Origin Layer" },
-  { kind: "item_modifier", label: "New Item Modifier" },
-  { kind: "tag", label: "New Tag" }
+const quickActions: Array<{ kind: NewFileKind; label: string; icon: ReactNode }> = [
+  { kind: "power", label: "New Power", icon: <Sparkles size={14} /> },
+  { kind: "origin", label: "New Origin", icon: <FolderOpen size={14} /> },
+  { kind: "origin_layer", label: "New Origin Layer", icon: <Layers3 size={14} /> },
+  { kind: "item_modifier", label: "New Item Modifier", icon: <Wrench size={14} /> },
+  { kind: "tag", label: "New Tag", icon: <Tag size={14} /> }
 ];
 
 export function ProjectSidebar({
@@ -21,6 +22,7 @@ export function ProjectSidebar({
   filter,
   onProjectInputChange,
   onOpenProject,
+  onCreateFolder,
   onQuickCreate,
   onFilterChange,
   onSelectFile
@@ -35,6 +37,7 @@ export function ProjectSidebar({
   filter: string;
   onProjectInputChange: (value: string) => void;
   onOpenProject: (path?: string) => void;
+  onCreateFolder: () => void;
   onQuickCreate: (kind: NewFileKind) => void;
   onFilterChange: (value: string) => void;
   onSelectFile: (path: string) => void;
@@ -90,12 +93,28 @@ export function ProjectSidebar({
             </div>
 
             <div className="quick-actions">
-              {quickActions.map((action) => (
-                <button key={action.kind} className="quick-action" onClick={() => onQuickCreate(action.kind)}>
-                  <Plus size={14} />
-                  {action.label}
-                </button>
-              ))}
+              <button className="quick-action quick-action-icon" onClick={onCreateFolder} aria-label="New folder" title="New folder">
+                <FolderPlus size={14} />
+              </button>
+
+              <details className="quick-action-menu">
+                <summary className="quick-action quick-action-icon" aria-label="New file" title="New file">
+                  <FilePlus size={14} />
+                </summary>
+                <div className="quick-action-popover" role="menu" aria-label="New file types">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.kind}
+                      className="quick-action quick-action-icon"
+                      onClick={() => onQuickCreate(action.kind)}
+                      aria-label={action.label}
+                      title={action.label}
+                    >
+                      {action.icon}
+                    </button>
+                  ))}
+                </div>
+              </details>
             </div>
 
             <label className="search-box">

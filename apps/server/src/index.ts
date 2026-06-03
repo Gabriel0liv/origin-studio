@@ -1,4 +1,4 @@
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
@@ -161,6 +161,15 @@ app.put("/api/files/content", async (request) => {
   const content = body.format ? formatJsonDocument(body.content) : body.content;
   await writeFile(filePath, content, "utf8");
   await refreshProject("fileSaved", { filePath: relativeUnixPath(projectRoot, filePath) });
+  return { ok: true };
+});
+
+app.post("/api/files/folder", async (request) => {
+  const projectRoot = requireProjectRoot();
+  const body = z.object({ path: z.string().min(1) }).parse(request.body);
+  const folderPath = ensureWithinRoot(projectRoot, body.path);
+  await mkdir(folderPath, { recursive: true });
+  await refreshProject("folderCreated", { path: relativeUnixPath(projectRoot, folderPath) });
   return { ok: true };
 });
 
