@@ -193,7 +193,7 @@ function validateDefinitionFields(
     if (!allowed.has(key) && !isLikelySubpower(definition.id, key, data[key])) {
       diagnostics.push({
         id: "unsupported-field",
-        severity: "warning",
+        severity: "info",
         filePath,
         range: getLineRange(raw, `"${key}"`),
         message: `Field "${key}" is not documented for type "${definition.id}".`,

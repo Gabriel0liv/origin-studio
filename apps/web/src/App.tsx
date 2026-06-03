@@ -9,10 +9,12 @@ import { ItemModifierBuilder } from "./components/ItemModifierBuilder";
 import { JsonDrawer } from "./components/JsonDrawer";
 import { NewFileWizard } from "./components/NewFileWizard";
 import { OriginBuilder } from "./components/OriginBuilder";
+import { OriginLayerBuilder } from "./components/OriginLayerBuilder";
 import { PowerBuilder } from "./components/PowerBuilder";
 import { ProblemsPanel } from "./components/ProblemsPanel";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { ReferencesPanel } from "./components/ReferencesPanel";
+import { SidePanelDrawer } from "./components/SidePanelDrawer";
 import { TagBuilder } from "./components/TagBuilder";
 import type {
   Diagnostic,
@@ -87,6 +89,7 @@ export function App() {
   const [wizardDraft, setWizardDraft] = useState<NewFileDraft>(buildDefaultDraft("power", ["example"]));
   const [filter, setFilter] = useState("");
   const [selectedField, setSelectedField] = useState<{ path: Array<string | number>; field: SchemaField } | null>(null);
+  const [drawerMode, setDrawerMode] = useState<"inspector" | "problems" | "references" | "schema" | null>(null);
 
   const allFiles = useMemo(() => flattenFiles(tree), [tree]);
   const groupedFiles = useMemo(() => groupNodes(allFiles, filter), [allFiles, filter]);
@@ -138,6 +141,21 @@ export function App() {
     () => (selectedField && documentState?.parsed ? getValueAtPath(documentState.parsed, selectedField.path) : undefined),
     [selectedField, documentState?.parsed]
   );
+
+  const drawerTitle = useMemo(() => {
+    switch (drawerMode) {
+      case "inspector":
+        return "Field Inspector";
+      case "problems":
+        return "Problems";
+      case "references":
+        return "References";
+      case "schema":
+        return "Raw Schema";
+      default:
+        return "";
+    }
+  }, [drawerMode]);
 
   const loadSchemaOptions = useCallback(async () => {
     const results = await Promise.all(
@@ -455,9 +473,14 @@ export function App() {
       directory={documentState ? toDirectory(documentState.relativePath) : undefined}
       absolutePath={documentState?.filePath}
       dirty={Boolean(documentState?.dirty)}
+      problemCount={currentFileProblems.length}
       onSave={() => void saveFile()}
       onReload={() => void reloadFile()}
       onOpenJson={() => setIsJsonOpen(true)}
+      onOpenProblems={() => setDrawerMode("problems")}
+      onOpenReferences={() => setDrawerMode("references")}
+      onOpenInspector={() => setDrawerMode("inspector")}
+      onOpenSchema={() => setDrawerMode("schema")}
     />
   );
 
@@ -472,59 +495,72 @@ export function App() {
     </section>
   );
 
-  const inspector = (
-    <>
-      <section className="inspector-card">
-        <div className="inspector-card-header">
-          <h3>Field Inspector</h3>
-          <p>Documentation, current value, and quick context for the selected field.</p>
-        </div>
-        {selectedField ? (
-          <div className="inspector-field-body">
-            <strong>{selectedField.field.name}</strong>
-            <small>{selectedField.field.type}</small>
-            {selectedField.field.description ? <p>{selectedField.field.description}</p> : null}
-            <pre className="json-preview">{JSON.stringify(selectedFieldValue, null, 2)}</pre>
-          </div>
-        ) : (
-          <p className="empty-state compact">Select a field in the builder to inspect it here.</p>
-        )}
-      </section>
-
-      <ProblemsPanel
-        currentFileProblems={currentFileProblems.filter(bySeverity("all"))}
-        projectProblems={projectProblems.filter(bySeverity("all"))}
-        onExplain={(id) => window.alert(explainMap[id] ?? "No extended explanation is registered in the MVP yet.")}
-        onApplyQuickFix={applyQuickFix}
-        onGoToProblem={goToProblem}
-      />
-
-      <section className="inspector-card">
-        <details open>
-          <summary className="inspector-card-header summary">
-            <div>
-              <h3>JSON Preview</h3>
-              <p>Live preview of the current in-memory document.</p>
-            </div>
-          </summary>
-          <pre className="json-preview">{documentState?.raw ?? "{}"}</pre>
-        </details>
-      </section>
-
-      <ReferencesPanel
-        referenceGroups={referenceGroups}
-        definitionsCreated={definitionsCreated}
-        incomingReferences={documentState?.incomingReferences ?? []}
-        onOpenFile={(path) => void loadFile(path)}
-      />
-    </>
-  );
-
   return (
     <>
       <AppShell sidebar={sidebar}>
-        <BuilderLayout header={header} builder={builder} inspector={inspector} />
+        <BuilderLayout header={header} builder={builder} />
       </AppShell>
+
+      <SidePanelDrawer
+        open={drawerMode !== null}
+        title={drawerTitle}
+        description={
+          drawerMode === "inspector"
+            ? "Documentation and current value for the selected field."
+            : drawerMode === "problems"
+              ? "Current file first, then the rest of the project."
+              : drawerMode === "references"
+                ? "Open, copy, and inspect related IDs without leaving the builder."
+                : "Schema registry data for the currently selected document type."
+        }
+        onOpenChange={(open) => {
+          if (!open) setDrawerMode(null);
+        }}
+      >
+        {drawerMode === "inspector" ? (
+          <section className="inspector-card drawer-card">
+            {selectedField ? (
+              <div className="inspector-field-body">
+                <strong>{selectedField.field.name}</strong>
+                <small>{selectedField.field.type}</small>
+                {selectedField.field.description ? <p>{selectedField.field.description}</p> : null}
+                <pre className="json-preview">{JSON.stringify(selectedFieldValue, null, 2)}</pre>
+              </div>
+            ) : (
+              <p className="empty-state compact">Select a field in the builder to inspect it here.</p>
+            )}
+          </section>
+        ) : null}
+
+        {drawerMode === "problems" ? (
+          <ProblemsPanel
+            currentFileProblems={currentFileProblems.filter(bySeverity("all"))}
+            projectProblems={projectProblems.filter(bySeverity("all"))}
+            onExplain={(id) => window.alert(explainMap[id] ?? "No extended explanation is registered in the MVP yet.")}
+            onApplyQuickFix={applyQuickFix}
+            onGoToProblem={goToProblem}
+          />
+        ) : null}
+
+        {drawerMode === "references" ? (
+          <ReferencesPanel
+            referenceGroups={referenceGroups}
+            definitionsCreated={definitionsCreated}
+            incomingReferences={documentState?.incomingReferences ?? []}
+            onOpenFile={(path) => void loadFile(path)}
+          />
+        ) : null}
+
+        {drawerMode === "schema" ? (
+          <section className="inspector-card drawer-card">
+            {documentState?.schema ? (
+              <pre className="json-preview">{JSON.stringify(documentState.schema, null, 2)}</pre>
+            ) : (
+              <p className="empty-state compact">No schema was resolved for this file yet.</p>
+            )}
+          </section>
+        ) : null}
+      </SidePanelDrawer>
 
       <JsonDrawer
         open={isJsonOpen}
@@ -574,8 +610,9 @@ function renderBuilder(
     case "power":
       return <PowerBuilder {...commonProps} />;
     case "origin":
-    case "origin_layer":
       return <OriginBuilder {...commonProps} />;
+    case "origin_layer":
+      return <OriginLayerBuilder {...commonProps} />;
     case "item_modifier":
       return <ItemModifierBuilder {...commonProps} />;
     case "tag":

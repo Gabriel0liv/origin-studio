@@ -16,5 +16,5 @@ export function OriginBuilder(props: {
     return <div className="builder-empty">This origin cannot be rendered as a structured builder yet.</div>;
   }
 
-  return <SchemaForm {...props} value={props.value} />;
+  return <SchemaForm {...props} kind="origin" value={props.value} />;
 }

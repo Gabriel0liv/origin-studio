@@ -2,7 +2,7 @@ import type { Diagnostic, LookupEntry, SchemaType } from "../types";
 import { isObject } from "../utils";
 import { SchemaForm } from "./SchemaForm";
 
-export function TagBuilder(props: {
+export function OriginLayerBuilder(props: {
   value: unknown;
   schema: SchemaType | null;
   diagnostics: Diagnostic[];
@@ -13,8 +13,8 @@ export function TagBuilder(props: {
   onFieldFocus?: (path: Array<string | number>, field: import("../types").SchemaField) => void;
 }) {
   if (!isObject(props.value)) {
-    return <div className="builder-empty">This tag cannot be rendered as a structured builder yet.</div>;
+    return <div className="builder-empty">This origin layer cannot be rendered as a structured builder yet.</div>;
   }
 
-  return <SchemaForm {...props} kind="tag" value={props.value} />;
+  return <SchemaForm {...props} kind="origin_layer" value={props.value} />;
 }

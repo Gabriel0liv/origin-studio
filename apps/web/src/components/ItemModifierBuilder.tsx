@@ -16,5 +16,5 @@ export function ItemModifierBuilder(props: {
     return <div className="builder-empty">This item modifier cannot be rendered as a structured builder yet.</div>;
   }
 
-  return <SchemaForm {...props} value={props.value} />;
+  return <SchemaForm {...props} kind="item_modifier" value={props.value} />;
 }

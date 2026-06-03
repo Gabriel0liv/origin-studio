@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { SchemaType } from "../types";
 
 export function TypeSelector({
@@ -26,28 +27,30 @@ export function TypeSelector({
   }, [options, query]);
 
   return (
-    <div className="type-selector">
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={`Search ${kind} types`}
-      />
-      <div className="type-option-list">
-        {filtered.slice(0, 24).map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={`type-option ${value === option.id ? "active" : ""}`}
-            onClick={() => onChange(option.id)}
-          >
-            <div>
-              <strong>{option.id}</strong>
-              <small>{kind}</small>
-            </div>
-            <p>{option.description ?? "No description available in the loaded schema."}</p>
-          </button>
-        ))}
+    <details className="type-combobox">
+      <summary className="type-combobox-trigger">
+        <span className="type-combobox-value">{value ?? `Select ${kind} type`}</span>
+        <ChevronDown size={14} />
+      </summary>
+      <div className="type-combobox-popover">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${kind} types`} />
+        <div className="type-combobox-list">
+          {filtered.slice(0, 24).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`type-option ${value === option.id ? "active" : ""}`}
+              onClick={() => onChange(option.id)}
+            >
+              <div className="type-option-head">
+                <strong>{option.id}</strong>
+                <small>{kind}</small>
+              </div>
+              <p>{option.description ?? "No description available in the loaded schema."}</p>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </details>
   );
 }

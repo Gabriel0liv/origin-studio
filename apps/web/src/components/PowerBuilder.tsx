@@ -16,5 +16,5 @@ export function PowerBuilder(props: {
     return <div className="builder-empty">This power cannot be rendered as a structured builder yet.</div>;
   }
 
-  return <SchemaForm {...props} value={props.value} />;
+  return <SchemaForm {...props} kind="power" value={props.value} />;
 }

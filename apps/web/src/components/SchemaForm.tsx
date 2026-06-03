@@ -1,10 +1,10 @@
+import type { ReactNode } from "react";
 import type { Diagnostic, LookupEntry, SchemaField, SchemaType } from "../types";
 import { isObject, startCase } from "../utils";
 import { FieldRenderer, readOptionalFieldValue } from "./FieldRenderer";
 
-const identityFields = ["type", "name", "description", "hidden", "loading_priority"];
-
 export function SchemaForm({
+  kind,
   value,
   schema,
   diagnostics,
@@ -14,6 +14,7 @@ export function SchemaForm({
   onOpenReference,
   onFieldFocus
 }: {
+  kind: string;
   value: Record<string, unknown>;
   schema: SchemaType | null;
   diagnostics: Diagnostic[];
@@ -24,81 +25,82 @@ export function SchemaForm({
   onFieldFocus?: ((path: Array<string | number>, field: SchemaField) => void) | undefined;
 }) {
   const allFields = schema?.fields ?? [];
-  const visibleSchemaFields = allFields.filter((field) => !identityFields.includes(field.name));
-  const optionalFields = visibleSchemaFields.filter((field) => !(field.name in value));
-  const customFields = Object.keys(value).filter(
-    (key) => !new Set([...identityFields, ...visibleSchemaFields.map((field) => field.name)]).has(key)
+  const identityNames = getIdentityFields(kind, value);
+  const advancedNames = new Set(["hidden", "loading_priority", "badges", "unchoosable", "enabled", "replace"]);
+  const displayNames = new Set(["icon", "impact", "order"]);
+
+  const visibleSchemaFields = allFields.filter((field) => !identityNames.includes(field.name));
+  const knownFieldNames = new Set([...identityNames, ...visibleSchemaFields.map((field) => field.name)]);
+  const customFields = Object.keys(value).filter((key) => !knownFieldNames.has(key));
+
+  const basicFields = identityNames.filter((name) => name in value || name === "name" || name === "description");
+  const displayFields = visibleSchemaFields.filter((field) => displayNames.has(field.name) && field.name in value);
+  const advancedFields = visibleSchemaFields.filter((field) => advancedNames.has(field.name) && field.name in value);
+  const configurationFields = visibleSchemaFields.filter(
+    (field) => !displayNames.has(field.name) && !advancedNames.has(field.name) && field.name in value
   );
+  const optionalFields = visibleSchemaFields.filter((field) => !(field.name in value));
 
   return (
-    <div className="schema-form">
-      <section className="builder-section">
-        <div className="builder-section-copy">
-          <h3>Identity</h3>
-          <p>Core metadata and the selected type for this document.</p>
-        </div>
-        <div className="builder-section-fields">
-          {identityFields
-            .filter((fieldName) => fieldName === "type" || fieldName in value || fieldName === "name" || fieldName === "description")
-            .map((fieldName) => (
-              <FieldRenderer
-                key={fieldName}
-                label={startCase(fieldName)}
-                path={[fieldName]}
-                value={value[fieldName]}
-                field={{
-                  name: fieldName,
-                  type: fieldName === "hidden" ? "boolean" : "string",
-                  required: fieldName === "type",
-                  ...(fieldName === "type" ? { nestedKind: schema?.kind ?? "power" } : {})
-                }}
-                diagnostics={diagnostics}
-                optionsByKind={optionsByKind}
-                lookup={lookup}
-                onValueChange={onValueChange}
-                onOpenReference={onOpenReference}
-                {...(onFieldFocus ? { onFieldFocus } : {})}
-              />
-            ))}
-        </div>
-      </section>
+    <div className="schema-form compact">
+      <SchemaSection title={sectionTitle(kind, "basic")} defaultOpen>
+        {basicFields.map((fieldName) => (
+          <FieldRenderer
+            key={fieldName}
+            label={startCase(fieldName)}
+            path={[fieldName]}
+            value={value[fieldName]}
+            field={buildIdentityField(kind, schema, fieldName)}
+            diagnostics={diagnostics}
+            optionsByKind={optionsByKind}
+            lookup={lookup}
+            onValueChange={onValueChange}
+            onOpenReference={onOpenReference}
+            {...(onFieldFocus ? { onFieldFocus } : {})}
+          />
+        ))}
+      </SchemaSection>
 
-      <section className="builder-section">
-        <div className="builder-section-copy">
-          <h3>Configuration</h3>
-          <p>Schema-driven fields for the selected type.</p>
-        </div>
-        <div className="builder-section-fields">
-          {visibleSchemaFields
-            .filter((field) => field.name in value)
-            .map((field) => (
-              <FieldRenderer
-                key={field.name}
-                label={startCase(field.name)}
-                path={[field.name]}
-                value={value[field.name]}
-                field={field}
-                diagnostics={diagnostics}
-                optionsByKind={optionsByKind}
-                lookup={lookup}
-                onValueChange={onValueChange}
-                onOpenReference={onOpenReference}
-                {...(onFieldFocus ? { onFieldFocus } : {})}
-              />
-            ))}
-          {visibleSchemaFields.filter((field) => field.name in value).length === 0 ? (
-            <p className="empty-state">No schema fields are currently filled for this type.</p>
-          ) : null}
-        </div>
-      </section>
+      {displayFields.length > 0 ? (
+        <SchemaSection title="Icon & Display" defaultOpen={kind === "origin"}>
+          {displayFields.map((field) => (
+            <FieldRenderer
+              key={field.name}
+              label={startCase(field.name)}
+              path={[field.name]}
+              value={value[field.name]}
+              field={field}
+              diagnostics={diagnostics}
+              optionsByKind={optionsByKind}
+              lookup={lookup}
+              onValueChange={onValueChange}
+              onOpenReference={onOpenReference}
+              {...(onFieldFocus ? { onFieldFocus } : {})}
+            />
+          ))}
+        </SchemaSection>
+      ) : null}
 
-      <details className="builder-section optional-section">
-        <summary>
-          <div className="builder-section-copy">
-            <h3>Optional Fields</h3>
-            <p>Add optional fields from the active schema when you need them.</p>
-          </div>
-        </summary>
+      <SchemaSection title={sectionTitle(kind, "configuration")} defaultOpen>
+        {configurationFields.map((field) => (
+          <FieldRenderer
+            key={field.name}
+            label={startCase(field.name)}
+            path={[field.name]}
+            value={value[field.name]}
+            field={field}
+            diagnostics={diagnostics}
+            optionsByKind={optionsByKind}
+            lookup={lookup}
+            onValueChange={onValueChange}
+            onOpenReference={onOpenReference}
+            {...(onFieldFocus ? { onFieldFocus } : {})}
+          />
+        ))}
+        {configurationFields.length === 0 ? <p className="empty-state compact">No direct configuration fields in this section.</p> : null}
+      </SchemaSection>
+
+      <SchemaSection title="Optional Fields">
         <div className="optional-grid">
           {optionalFields.map((field) => (
             <button
@@ -113,13 +115,30 @@ export function SchemaForm({
           ))}
           {optionalFields.length === 0 ? <p className="empty-state compact">No optional fields available.</p> : null}
         </div>
-      </details>
+      </SchemaSection>
 
-      <section className="builder-section">
-        <div className="builder-section-copy">
-          <h3>Custom Fields</h3>
-          <p>Unrecognized fields are preserved and editable as raw JSON-friendly inputs.</p>
+      <SchemaSection title="Advanced">
+        <div className="builder-section-fields">
+          {advancedFields.map((field) => (
+            <FieldRenderer
+              key={field.name}
+              label={startCase(field.name)}
+              path={[field.name]}
+              value={value[field.name]}
+              field={field}
+              diagnostics={diagnostics}
+              optionsByKind={optionsByKind}
+              lookup={lookup}
+              onValueChange={onValueChange}
+              onOpenReference={onOpenReference}
+              {...(onFieldFocus ? { onFieldFocus } : {})}
+            />
+          ))}
+          {advancedFields.length === 0 ? <p className="empty-state compact">No advanced fields in use.</p> : null}
         </div>
+      </SchemaSection>
+
+      <SchemaSection title="Custom Fields">
         <div className="builder-section-fields">
           {customFields.map((fieldName) => (
             <FieldRenderer
@@ -142,9 +161,58 @@ export function SchemaForm({
           ))}
           {customFields.length === 0 ? <p className="empty-state compact">No custom fields in this document.</p> : null}
         </div>
-      </section>
+      </SchemaSection>
     </div>
   );
+}
+
+function SchemaSection({
+  title,
+  children,
+  defaultOpen = false
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details className="builder-section collapsible" open={defaultOpen}>
+      <summary className="builder-section-summary">
+        <h3>{title}</h3>
+      </summary>
+      <div className="builder-section-body">{children}</div>
+    </details>
+  );
+}
+
+function getIdentityFields(kind: string, value: Record<string, unknown>): string[] {
+  switch (kind) {
+    case "origin":
+      return ["name", "description"];
+    case "origin_layer":
+      return ["name", "description"];
+    case "tag":
+      return ["replace"];
+    default:
+      return ["type", "name", "description"];
+  }
+}
+
+function buildIdentityField(kind: string, schema: SchemaType | null, fieldName: string): SchemaField {
+  if (fieldName === "type") {
+    return {
+      name: "type",
+      type: "string",
+      required: true,
+      nestedKind: schema?.kind ?? (kind === "power" ? "power" : kind)
+    };
+  }
+
+  if (fieldName === "hidden" || fieldName === "replace") {
+    return { name: fieldName, type: "boolean", required: false };
+  }
+
+  return { name: fieldName, type: "string", required: fieldName === "name" };
 }
 
 function inferCustomType(value: unknown): string {
@@ -153,4 +221,23 @@ function inferCustomType(value: unknown): string {
   if (typeof value === "boolean") return "boolean";
   if (typeof value === "number") return "number";
   return "string";
+}
+
+function sectionTitle(kind: string, section: "basic" | "configuration"): string {
+  if (section === "basic") return "Basic";
+
+  switch (kind) {
+    case "power":
+      return "Configuration";
+    case "origin":
+      return "Powers";
+    case "origin_layer":
+      return "Origins";
+    case "item_modifier":
+      return "Modifier Steps";
+    case "tag":
+      return "Values";
+    default:
+      return "Configuration";
+  }
 }

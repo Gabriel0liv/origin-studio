@@ -77,7 +77,14 @@ const builtinRegistry: SchemaRegistry = {
         fields: [
           { name: "name", type: "string", required: true },
           { name: "description", type: "string", required: true },
-          { name: "powers", type: "array", required: true }
+          { name: "icon", type: "string", required: false },
+          { name: "impact", type: "number", required: false },
+          { name: "order", type: "number", required: false },
+          { name: "powers", type: "array", required: true },
+          { name: "unchoosable", type: "boolean", required: false },
+          { name: "hidden", type: "boolean", required: false },
+          { name: "loading_priority", type: "number", required: false },
+          { name: "badges", type: "array", required: false }
         ]
       }
     },
@@ -87,8 +94,13 @@ const builtinRegistry: SchemaRegistry = {
         kind: "origin_layer",
         source: "builtin",
         fields: [
+          { name: "name", type: "string", required: false },
+          { name: "order", type: "number", required: false },
           { name: "origins", type: "array", required: true },
-          { name: "replace", type: "boolean", required: false }
+          { name: "replace", type: "boolean", required: false },
+          { name: "enabled", type: "boolean", required: false },
+          { name: "hidden", type: "boolean", required: false },
+          { name: "loading_priority", type: "number", required: false }
         ]
       }
     },
