@@ -447,7 +447,7 @@ function schemaPropToField(name: string, node: Record<string, unknown>): Normali
   return {
     name,
     type,
-    required: !Boolean(node.unspec),
+    required: node.required === true || node.req === true,
     description: typeof node.desc === "string" ? node.desc : undefined,
     defaultValue: node.default,
     allowedValues,
